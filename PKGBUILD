@@ -1,6 +1,6 @@
 # Maintainer: Rama Aditya
 pkgname=openwave
-pkgver=0.1.6
+pkgver=0.1.7
 pkgrel=1
 pkgdesc="Linux control application for the Elgato Wave XLR"
 arch=('any')

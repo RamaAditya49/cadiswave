@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "openwave-xlr"
-version = "0.1.6"
+version = "0.1.7"
 description = "Linux control app and background service for Elgato Wave XLR"
 readme = "README.md"
 requires-python = ">=3.10"

@@ -95,7 +95,7 @@ class WaveXLRWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.HORIZONTAL,
             hexpand=True,
             draw_value=False,
-            adjustment=Gtk.Adjustment(lower=0x0000, upper=0x5000, step_increment=0x40, page_increment=0x200),
+            adjustment=Gtk.Adjustment(lower=0x0000, upper=0x4B00, step_increment=0x80, page_increment=0x200),
         )
         self.gain_scale.set_margin_start(12)
         self.gain_scale.set_margin_end(12)

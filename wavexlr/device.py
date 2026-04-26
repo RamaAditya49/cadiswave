@@ -34,6 +34,9 @@ OFF_MUTE = 4
 OFF_HP_VOL = 9
 OFF_VOL_SELECT = 14
 OFF_LOW_Z = 33
+GAIN_STEP_RAW = 0x80
+GAIN_MAX_RAW = 0x4B00
+ALSA_GAIN_MAX = 150
 
 # --- Raw libusb setup ---
 _lib_path = ctypes.util.find_library("usb-1.0") or "libusb-1.0.so.0"
@@ -90,11 +93,19 @@ def _amixer(card, *args):
 
 
 def _alsa_get(card):
-    """Read ALSA mute and HP volume."""
+    """Read ALSA mute, mic gain, and HP volume."""
     state = {}
     # Mute (numid=5)
     out = _amixer(card, "cget", "numid=5")
     state["mute"] = ": values=off" in out
+    # Mic gain (numid=6) — raw ALSA value 0-150 in 0.5 dB steps
+    out = _amixer(card, "cget", "numid=6")
+    for line in out.splitlines():
+        if ": values=" in line:
+            try:
+                state["gain_vol"] = int(line.split("=")[-1])
+            except ValueError:
+                pass
     # HP volume (numid=4) — raw ALSA value 0-120
     out = _amixer(card, "cget", "numid=4")
     for line in out.splitlines():
@@ -110,9 +121,24 @@ def _alsa_set_mute(card, muted):
     _amixer(card, "cset", "numid=5", "off" if muted else "on")
 
 
+def _alsa_set_gain_vol(card, value):
+    """Set ALSA mic gain (numid=6, 0-150)."""
+    _amixer(card, "cset", "numid=6", str(max(0, min(ALSA_GAIN_MAX, value))))
+
+
 def _alsa_set_hp_vol(card, value):
     """Set ALSA HP volume (numid=4, 0-120)."""
     _amixer(card, "cset", "numid=4", str(max(0, min(120, value))))
+
+
+def _fw_gain_to_alsa(fw_gain_raw):
+    """Map firmware mic gain to ALSA mic gain (0.5 dB steps)."""
+    return max(0, min(ALSA_GAIN_MAX, round(fw_gain_raw / GAIN_STEP_RAW)))
+
+
+def _alsa_gain_to_fw(alsa_gain):
+    """Map ALSA mic gain (0-150) to firmware mic gain."""
+    return max(0, min(GAIN_MAX_RAW, int(alsa_gain) * GAIN_STEP_RAW))
 
 
 def _fw_hp_to_alsa(fw_hp_raw):
@@ -256,6 +282,10 @@ class WaveXLR:
 
         last = self._last_fw
         if self._card:
+            if last is None or fw_gain != last["gain"]:
+                alsa_gain = _fw_gain_to_alsa(fw_gain)
+                _alsa_set_gain_vol(self._card, alsa_gain)
+                fw_gain = _alsa_gain_to_fw(alsa_gain)
             if last is None or fw_mute != last["mute"]:
                 _alsa_set_mute(self._card, fw_mute)
             if last is None or fw_hp != last["hp"]:
@@ -292,6 +322,15 @@ class WaveXLR:
                     fw_mute = alsa["mute"]
                     dirty = True
 
+                # --- Mic gain ---
+                if fw_gain != self._last_fw["gain"]:
+                    _alsa_set_gain_vol(self._card, _fw_gain_to_alsa(fw_gain))
+                    fw_gain = _alsa_gain_to_fw(_fw_gain_to_alsa(fw_gain))
+                elif "gain_vol" in alsa and alsa["gain_vol"] != _fw_gain_to_alsa(self._last_fw["gain"]):
+                    fw_gain = _alsa_gain_to_fw(alsa["gain_vol"])
+                    struct.pack_into('<H', config, OFF_GAIN, fw_gain)
+                    dirty = True
+
                 # --- HP volume ---
                 if fw_hp != self._last_fw["hp"]:
                     _alsa_set_hp_vol(self._card, _fw_hp_to_alsa(fw_hp))
@@ -302,6 +341,8 @@ class WaveXLR:
 
             else:
                 # First poll — sync firmware state to ALSA
+                _alsa_set_gain_vol(self._card, _fw_gain_to_alsa(fw_gain))
+                fw_gain = _alsa_gain_to_fw(_fw_gain_to_alsa(fw_gain))
                 _alsa_set_mute(self._card, fw_mute)
                 _alsa_set_hp_vol(self._card, _fw_hp_to_alsa(fw_hp))
 
@@ -323,12 +364,15 @@ class WaveXLR:
     # --- High-level setters (read-modify-write) ---
 
     def set_gain_raw(self, value):
-        value = max(0, min(0xFFFF, value))
+        value = max(0, min(GAIN_MAX_RAW, value))
         config = self.read_config()
         struct.pack_into('<H', config, OFF_GAIN, value)
         self.write_config(config)
+        value = _alsa_gain_to_fw(_fw_gain_to_alsa(value))
         if self._last_fw:
             self._last_fw["gain"] = value
+        if self._card:
+            _alsa_set_gain_vol(self._card, _fw_gain_to_alsa(value))
 
     def set_mute(self, muted):
         config = self.read_config()

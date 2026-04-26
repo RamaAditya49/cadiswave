@@ -16,6 +16,7 @@ components.
 - Low impedance mode toggle
 - Firmware/API/serial display
 - Hardware mute sync to ALSA and PipeWire
+- Hardware mic gain sync to ALSA while the dial is in mic gain mode
 - Background capture keepalive to avoid the Wave XLR Linux capture race
 - Default input restoration after device reconnect
 - System tray support with quick mute
