@@ -67,14 +67,17 @@ def install_service():
     python = shutil.which("python3") or "/usr/bin/python3"
 
     content = f"""[Unit]
-Description=OpenWave Audio Manager
-After=pipewire.service wireplumber.service
+Description=OpenWave Audio Manager for Elgato Wave XLR
+Wants=pipewire.service pipewire-pulse.service wireplumber.service
+After=pipewire.service pipewire-pulse.service wireplumber.service
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+Environment=PYTHONUNBUFFERED=1
 ExecStart={python} -c "from wavexlr.daemon import main; main()"
 WorkingDirectory={APP_DIR}
-Restart=on-failure
+Restart=always
 RestartSec=3
 
 [Install]

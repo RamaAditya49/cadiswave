@@ -8,6 +8,8 @@ No driver detach needed — audio is never interrupted.
 
 import ctypes
 import ctypes.util
+import fcntl
+import os
 import struct
 import subprocess
 import threading
@@ -52,6 +54,15 @@ _lib.libusb_control_transfer.restype = ctypes.c_int
 
 _ctx = ctypes.c_void_p()
 _lib.libusb_init(ctypes.byref(_ctx))
+_usb_lock_fd = os.open("/tmp/openwave-usb.lock", os.O_CREAT | os.O_RDWR, 0o600)
+
+
+def _usb_process_lock():
+    fcntl.flock(_usb_lock_fd, fcntl.LOCK_EX)
+
+
+def _usb_process_unlock():
+    fcntl.flock(_usb_lock_fd, fcntl.LOCK_UN)
 
 
 def _find_card():
@@ -125,33 +136,47 @@ class WaveXLR:
         self._lock = threading.Lock()
         self._card = None
         self._last_fw = None  # last known firmware state for change detection
+        self._owns_process_lock = False
 
     @property
     def connected(self):
         return self._handle is not None
 
     def connect(self):
+        _usb_process_lock()
         handle = _lib.libusb_open_device_with_vid_pid(_ctx, VENDOR_ID, PRODUCT_ID)
         if not handle:
+            _usb_process_unlock()
             raise RuntimeError("Wave XLR not found")
         self._handle = handle
+        self._owns_process_lock = True
         self._card = _find_card()
 
-    def disconnect(self):
+    def disconnect(self, reset_state=True):
         if self._handle:
             _lib.libusb_close(self._handle)
             self._handle = None
+        if self._owns_process_lock:
+            _usb_process_unlock()
+            self._owns_process_lock = False
         self._card = None
-        self._last_fw = None
+        if reset_state:
+            self._last_fw = None
 
     def _ctrl_read(self, wValue, length):
         """USB control read — no detach needed."""
         buf = (ctypes.c_ubyte * length)()
         with self._lock:
-            ret = _lib.libusb_control_transfer(
-                self._handle, RT_CLASS_IN, BREQUEST_READ, wValue, WINDEX,
-                buf, length, 1000,
-            )
+            if not self._owns_process_lock:
+                _usb_process_lock()
+            try:
+                ret = _lib.libusb_control_transfer(
+                    self._handle, RT_CLASS_IN, BREQUEST_READ, wValue, WINDEX,
+                    buf, length, 1000,
+                )
+            finally:
+                if not self._owns_process_lock:
+                    _usb_process_unlock()
         if ret < 0:
             raise RuntimeError(f"USB read failed (err {ret})")
         return bytearray(buf[:ret])
@@ -161,10 +186,16 @@ class WaveXLR:
         data = bytes(data)
         buf = (ctypes.c_ubyte * len(data))(*data)
         with self._lock:
-            ret = _lib.libusb_control_transfer(
-                self._handle, RT_CLASS_OUT, BREQUEST_WRITE, wValue, WINDEX,
-                buf, len(data), 1000,
-            )
+            if not self._owns_process_lock:
+                _usb_process_lock()
+            try:
+                ret = _lib.libusb_control_transfer(
+                    self._handle, RT_CLASS_OUT, BREQUEST_WRITE, wValue, WINDEX,
+                    buf, len(data), 1000,
+                )
+            finally:
+                if not self._owns_process_lock:
+                    _usb_process_unlock()
         if ret < 0:
             raise RuntimeError(f"USB write failed (err {ret})")
 
@@ -208,6 +239,36 @@ class WaveXLR:
     def get_volume_select(self):
         val = self.read_config()[OFF_VOL_SELECT]
         return "hp" if val == 2 else "gain"
+
+    def sync_mute_state(self):
+        """Sync firmware mute to ALSA and return (muted, changed)."""
+        last = self._last_fw
+        state = self.sync_hardware_state()
+        changed = last is None or state["mute"] != last["mute"]
+        return state["mute"], changed
+
+    def sync_hardware_state(self):
+        """Sync firmware controls to ALSA hardware controls."""
+        config = self.read_config()
+        fw_gain = struct.unpack_from('<H', config, OFF_GAIN)[0]
+        fw_hp = struct.unpack_from('<h', config, OFF_HP_VOL)[0]
+        fw_mute = bool(config[OFF_MUTE])
+
+        last = self._last_fw
+        if self._card:
+            if last is None or fw_mute != last["mute"]:
+                _alsa_set_mute(self._card, fw_mute)
+            if last is None or fw_hp != last["hp"]:
+                _alsa_set_hp_vol(self._card, _fw_hp_to_alsa(fw_hp))
+
+        self._last_fw = {"mute": fw_mute, "gain": fw_gain, "hp": fw_hp}
+        return {
+            "gain_raw": fw_gain,
+            "mute": fw_mute,
+            "hp_volume_db": fw_hp / 256.0,
+            "volume_select": "hp" if config[OFF_VOL_SELECT] == 2 else "gain",
+            "low_impedance": bool(config[OFF_LOW_Z]),
+        }
 
     def get_all(self):
         config = self.read_config()

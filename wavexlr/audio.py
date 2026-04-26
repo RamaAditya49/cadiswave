@@ -7,6 +7,7 @@ Strategy: run `pw-cat --record` targeted at the Wave XLR source, piping to
 """
 
 import json
+import re
 import subprocess
 import threading
 import time
@@ -30,16 +31,84 @@ def _pw_dump():
     return []
 
 
-def _get_source_node_name():
-    """Get the full node name of the Wave XLR source."""
+def _get_node(match):
+    """Get the PipeWire node id and name for the first matching node."""
     for obj in _pw_dump():
         if obj.get("type") != "PipeWire:Interface:Node":
             continue
         props = obj.get("info", {}).get("props", {})
         name = props.get("node.name", "")
-        if name.startswith(SOURCE_MATCH):
-            return name
+        if name.startswith(match):
+            return {"id": str(obj.get("id")), "name": name}
     return None
+
+
+def _get_source_node():
+    """Get the PipeWire node id and name of the Wave XLR source."""
+    return _get_node(SOURCE_MATCH)
+
+
+def _get_default_source_name():
+    """Read the current PipeWire default audio source name."""
+    try:
+        r = subprocess.run(
+            ["pw-metadata", "-n", "default", "0", "default.audio.source"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if r.returncode != 0:
+            return None
+
+        match = re.search(r"value:'([^']*)'", r.stdout)
+        if not match:
+            return None
+
+        return json.loads(match.group(1)).get("name")
+    except Exception:
+        return None
+
+
+def _set_default_source(node):
+    """Make the Wave XLR the default input so apps keep using it after reconnect."""
+    if _get_default_source_name() == node["name"]:
+        return True
+
+    try:
+        r = subprocess.run(
+            ["wpctl", "set-default", node["id"]],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if r.returncode == 0:
+            log.info("Set Wave XLR as default audio source")
+            return True
+        log.warning(f"Failed to set default source: {r.stderr.strip()}")
+    except Exception as e:
+        log.warning(f"Failed to set default source: {e}")
+    return False
+
+
+def set_source_mute(muted):
+    """Mirror hardware mute to the PipeWire source mute state."""
+    source = _get_source_node()
+    if not source:
+        return False
+
+    try:
+        r = subprocess.run(
+            ["wpctl", "set-mute", source["id"], "1" if muted else "0"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if r.returncode == 0:
+            return True
+        log.warning(f"Failed to set PipeWire source mute: {r.stderr.strip()}")
+    except Exception as e:
+        log.warning(f"Failed to set PipeWire source mute: {e}")
+    return False
 
 
 class AudioManager:
@@ -87,19 +156,19 @@ class AudioManager:
     def _start_cat(self, source_name):
         """Start pw-cat to keep capture stream open."""
         self._kill_cat()
-        devnull = open("/dev/null", "wb")
-        self._cat_proc = subprocess.Popen(
-            [
-                "pw-cat", "--record",
-                "--target", source_name,
-                "--channels", "1",
-                "--format", "s16",
-                "--rate", "48000",
-                "-",
-            ],
-            stdout=devnull,
-            stderr=subprocess.DEVNULL,
-        )
+        with open("/dev/null", "wb") as devnull:
+            self._cat_proc = subprocess.Popen(
+                [
+                    "pw-cat", "--record",
+                    "--target", source_name,
+                    "--channels", "1",
+                    "--format", "s16",
+                    "--rate", "48000",
+                    "-",
+                ],
+                stdout=devnull,
+                stderr=subprocess.DEVNULL,
+            )
         log.info(f"Started capture keepalive (PID {self._cat_proc.pid})")
 
     def _cat_alive(self):
@@ -115,17 +184,19 @@ class AudioManager:
     def _run(self):
         while self._running:
             try:
-                source_name = _get_source_node_name()
+                source = _get_source_node()
 
-                if not source_name:
+                if not source:
                     if self._device_present:
                         self._kill_cat()
                     self._update_status(False, False)
                     time.sleep(2)
                     continue
 
+                _set_default_source(source)
+
                 if not self._cat_alive():
-                    self._start_cat(source_name)
+                    self._start_cat(source["name"])
                     time.sleep(1)
 
                 healthy = self._cat_alive()
