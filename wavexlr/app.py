@@ -14,6 +14,7 @@ from . import setup
 import subprocess
 
 logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
+log = logging.getLogger("openwave.app")
 
 
 class WaveXLRWindow(Adw.ApplicationWindow):
@@ -338,6 +339,7 @@ class WaveXLRApp(Adw.Application):
         self._window = None
         self._start_hidden = False
         self._tray = None
+        self._activation_failed = False
         self.add_main_option(
             "hide", 0, GLib.OptionFlags.NONE, GLib.OptionArg.NONE,
             "Start hidden in system tray", None,
@@ -347,15 +349,27 @@ class WaveXLRApp(Adw.Application):
         options = command_line.get_options_dict()
         if options.contains("hide"):
             self._start_hidden = True
+        self._activation_failed = False
         self.activate()
-        return 0
+        return 1 if self._activation_failed else 0
 
     def do_activate(self):
         if not self._window:
             if setup.needs_setup():
-                self._show_setup_dialog()
+                try:
+                    self._show_setup_dialog()
+                except RuntimeError:
+                    log.exception("Failed to initialize OpenWave setup UI")
+                    self._activation_failed = True
+                    self.quit()
                 return
-            self._window = WaveXLRWindow(application=self)
+            try:
+                self._window = WaveXLRWindow(application=self)
+            except RuntimeError:
+                log.exception("Failed to initialize OpenWave UI")
+                self._activation_failed = True
+                self.quit()
+                return
             # Hide-to-tray on close instead of quitting
             self._window.connect("close-request", self._on_close_request)
             self._setup_tray()

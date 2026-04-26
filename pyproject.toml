@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openwave-xlr"
+version = "0.1.6"
+description = "Linux control app and background service for Elgato Wave XLR"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Rama Aditya" }
+]
+keywords = ["elgato", "wave-xlr", "linux", "pipewire", "gtk"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: X11 Applications :: GTK",
+  "Intended Audience :: End Users/Desktop",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Topic :: Multimedia :: Sound/Audio",
+]
+
+[project.urls]
+Homepage = "https://github.com/RamaAditya49/openwave"
+Repository = "https://github.com/RamaAditya49/openwave"
+Issues = "https://github.com/RamaAditya49/openwave/issues"
+
+[project.scripts]
+openwave = "wavexlr.app:main"
+
+[tool.setuptools]
+packages = ["wavexlr"]

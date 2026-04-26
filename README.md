@@ -1,66 +1,130 @@
 # OpenWave
 
-Linux control application for the **Elgato Wave XLR** microphone interface. A reverse-engineered replacement for Elgato Wave Link, built with GTK4 + Adwaita.
+OpenWave is an unofficial Linux control app and background service for the
+Elgato Wave XLR USB audio interface.
+
+It is not affiliated with, endorsed by, or supported by Elgato/Corsair. Wave XLR
+does not have official Linux software, so this project implements the Linux
+control path with standard USB, ALSA, PipeWire, WirePlumber, GTK4, and libadwaita
+components.
 
 ## Features
 
-- **Microphone controls** — Gain, mute (syncs with hardware button)
-- **Headphone controls** — Volume (syncs with hardware knob), low impedance mode
-- **Hardware sync** — 10 Hz polling keeps the app in sync with physical controls
-- **System integration** — Mute and HP volume sync bidirectionally with PipeWire/ALSA
-- **Audio capture fix** — Systemd daemon prevents the firmware race condition where mic goes silent
-- **System tray** — Runs in background with tray icon, mute from tray menu
-- **First-run setup** — Configures udev permissions and audio service automatically
+- GTK4/libadwaita desktop app for Wave XLR controls
+- Microphone gain and mute controls
+- Headphone output volume control for the Wave XLR headphone jack
+- Low impedance mode toggle
+- Firmware/API/serial display
+- Hardware mute sync to ALSA and PipeWire
+- Background capture keepalive to avoid the Wave XLR Linux capture race
+- Default input restoration after device reconnect
+- System tray support with quick mute
+- First-run setup for USB permissions and the user systemd service
 
-## How it works
+## Current Limitations
 
-The Wave XLR uses USB Class control transfers on endpoint 0 for device configuration. On Linux, `snd-usb-audio` normally blocks these transfers because `wIndex=0x3300` routes through interface 0 (owned by the audio driver). OpenWave uses `wIndex=0x3303` instead — the firmware only checks the `0x33` prefix, while the kernel sees interface 3 (unclaimed) and lets the transfer through. No driver detach needed, audio is never interrupted.
+- The physical dial is not a programmable system volume knob.
+- Headphone volume only affects the Wave XLR 3.5 mm headphone output.
+- The dial mode is chosen on the device itself. Press the dial to cycle between
+  mic gain, headphone volume, and mic/PC mix.
+- Clipguard, low-cut, LED color, sample-rate switching, and save-to-hardware are
+  not implemented yet.
 
 ## Requirements
 
+- Linux with PipeWire and WirePlumber
 - Python 3.10+
-- GTK4, libadwaita
-- PipeWire (for audio capture fix)
+- pip, if installing from source with `python3 -m pip`
+- GTK4 and libadwaita
+- PyGObject
 - libusb 1.0
+- ALSA utilities
+- `pkexec`/polkit for first-run USB permission setup
 
 On Arch/CachyOS:
+
 ```bash
-sudo pacman -S gtk4 libadwaita python-gobject pipewire
+sudo pacman -S python python-pip python-gobject gtk4 libadwaita libusb pipewire wireplumber alsa-utils polkit
 ```
 
-## Usage
+On Debian/Ubuntu-like systems, install the equivalent packages:
 
 ```bash
-git clone https://github.com/rikkichy/openwave.git
+sudo apt install python3 python3-pip python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 libusb-1.0-0 pipewire wireplumber alsa-utils policykit-1
+```
+
+## Install From Source
+
+```bash
+git clone https://github.com/RamaAditya49/openwave.git
+cd openwave
+python3 -m pip install --user .
+openwave
+```
+
+On first launch, OpenWave prompts to install:
+
+- a udev rule for Wave XLR USB permissions
+- `openwave.service`, a user systemd service for capture/default-mic/hardware sync
+
+## Run Without Installing
+
+```bash
+git clone https://github.com/RamaAditya49/openwave.git
 cd openwave
 python3 -m wavexlr
 ```
 
-On first launch, OpenWave will prompt to set up USB permissions (via polkit) and install the audio service.
+Start hidden in the tray:
 
-### Start hidden in tray
 ```bash
 python3 -m wavexlr -- --hide
 ```
 
-### Desktop entry
-Copy `wavexlr.desktop` to `~/.local/share/applications/` for app launcher integration.
+## Desktop Entry
 
-## Architecture
+If installed with `pip`, copy the desktop entry manually:
 
-```
-wavexlr/
-  device.py   — USB backend (raw libusb via ctypes, wIndex=0x3303 trick)
-  app.py      — GTK4/Adwaita UI with 10Hz polling
-  tray.py     — StatusNotifierItem tray icon via D-Bus
-  audio.py    — PipeWire capture keepalive (fixes firmware race condition)
-  daemon.py   — Systemd service entry point
-  setup.py    — First-run udev + systemd setup
+```bash
+mkdir -p ~/.local/share/applications
+cp wavexlr.desktop ~/.local/share/applications/openwave.desktop
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
 ```
 
-## Credits
+## Background Service
 
-USB protocol reverse-engineered from the macOS Wave Link application using Frida. Inspired by [GoXLR-on-Linux/goxlr-utility](https://github.com/GoXLR-on-Linux/goxlr-utility).
+The user service runs:
+
+```bash
+python3 -c "from wavexlr.daemon import main; main()"
+```
+
+It keeps Wave XLR capture active, restores the Wave XLR as default input, and
+mirrors hardware mute into PipeWire so browsers and apps see the mute state.
+
+Useful commands:
+
+```bash
+systemctl --user status openwave.service
+journalctl --user -u openwave.service -f
+systemctl --user restart openwave.service
+```
+
+## How It Works
+
+Wave XLR exposes audio through standard USB audio interfaces. Device settings are
+read and written through USB class control transfers. OpenWave uses libusb for
+those device controls and ALSA/PipeWire for host audio integration.
+
+The capture keepalive exists because on Linux the Wave XLR can produce silence
+when playback starts before capture. Keeping capture active first avoids that
+race in practice.
+
+## Repository
+
+Public repository:
+
+https://github.com/RamaAditya49/openwave
 
 ## License
 
