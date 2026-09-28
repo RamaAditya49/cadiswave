@@ -9,6 +9,7 @@ import logging
 import sys
 import threading
 
+from .audio import set_source_mute
 from .device import WaveXLR
 from . import setup
 import subprocess
@@ -18,12 +19,17 @@ log = logging.getLogger("openwave.app")
 
 
 class WaveXLRWindow(Adw.ApplicationWindow):
-    def __init__(self, **kwargs):
+    def __init__(self, on_mute_change=None, **kwargs):
         super().__init__(**kwargs, title="OpenWave", default_width=380, default_height=560)
         self.xlr = WaveXLR()
+        self._on_mute_change = on_mute_change
         self._updating_ui = False
         self._last_state = None
+        self._linux_mute = None
         self._poll_id = None
+        self._poll_busy = False
+        self._connect_busy = False
+        self._reconnect_id = None
 
         self._build_ui()
         self._update_service_status()
@@ -215,6 +221,10 @@ class WaveXLRWindow(Adw.ApplicationWindow):
         threading.Thread(target=_worker, daemon=True).start()
 
     def _try_connect(self):
+        if self._connect_busy:
+            return
+        self._cancel_reconnect()
+        self._connect_busy = True
         self.status_label.set_label("Connecting...")
         def _connect():
             self.xlr.disconnect()
@@ -224,8 +234,9 @@ class WaveXLRWindow(Adw.ApplicationWindow):
                 info = self.xlr.read_device_info()
             except Exception:
                 pass
-            return {"state": self.xlr.get_all(), "info": info}
+            return {"state": self._read_state(), "info": info}
         def _done(result):
+            self._connect_busy = False
             self.status_label.set_label("OpenWave")
             self.status_label.remove_css_class("dim-label")
             self._apply_state(result["state"])
@@ -235,9 +246,25 @@ class WaveXLRWindow(Adw.ApplicationWindow):
             self.serial_label.set_label(info.get("serial", "—"))
             self._start_polling()
         def _fail(e):
+            self._connect_busy = False
             self.status_label.set_label("Disconnected")
             self.status_label.add_css_class("dim-label")
+            self._schedule_reconnect()
         self._usb_async(_connect, _done, _fail)
+
+    def _cancel_reconnect(self):
+        if self._reconnect_id:
+            GLib.source_remove(self._reconnect_id)
+            self._reconnect_id = None
+
+    def _schedule_reconnect(self):
+        if not self._reconnect_id:
+            self._reconnect_id = GLib.timeout_add_seconds(2, self._retry_connect)
+
+    def _retry_connect(self):
+        self._reconnect_id = None
+        self._try_connect()
+        return False
 
     def _start_polling(self):
         """Start 10 Hz polling to sync hardware state."""
@@ -255,22 +282,40 @@ class WaveXLRWindow(Adw.ApplicationWindow):
         if not self.xlr.connected:
             self._poll_id = None
             return False  # stop polling
-        # Only poll if not already busy with a user-initiated write
-        self._usb_async(self.xlr.get_all, self._on_poll_result, self._on_poll_error)
+        if self._poll_busy:
+            return True
+        self._poll_busy = True
+        self._usb_async(self._read_state, self._on_poll_result, self._on_poll_error)
         return True  # keep polling
 
+    def _read_state(self):
+        state = self.xlr.get_all()
+        if self._linux_mute != state["mute"] and set_source_mute(state["mute"]):
+            self._linux_mute = state["mute"]
+        return state
+
     def _on_poll_result(self, state):
+        self._poll_busy = False
+        if not self.xlr.connected:
+            return
         if state != self._last_state:
             self._apply_state(state)
 
     def _on_poll_error(self, e):
+        self._poll_busy = False
+        self._on_usb_error(e)
+
+    def _on_usb_error(self, e):
+        log.warning("Wave XLR control disconnected: %s", e)
         self.status_label.set_label("Disconnected")
         self.status_label.add_css_class("dim-label")
         self.xlr.disconnect()
         self._stop_polling()
+        self._schedule_reconnect()
 
     def _apply_state(self, state):
         """Update UI from device state dict (must be called on GTK thread)."""
+        mute_changed = self._last_state is None or self._last_state["mute"] != state["mute"]
         self._updating_ui = True
         self._last_state = state
         self.mute_row.set_active(state["mute"])
@@ -281,12 +326,9 @@ class WaveXLRWindow(Adw.ApplicationWindow):
         self.lowz_row.set_active(state["low_impedance"])
         self.knob_label.set_label("Headphones" if state["volume_select"] == "hp" else "Gain")
         self._updating_ui = False
-
-    def _on_usb_error(self, e):
-        self.status_label.set_label("Disconnected")
-        self.status_label.add_css_class("dim-label")
-        self.xlr.disconnect()
-        self._stop_polling()
+        if mute_changed:
+            if self._on_mute_change:
+                self._on_mute_change(state["mute"])
 
     def _on_mute_changed(self, row, _pspec):
         if self._updating_ui or not self.xlr.connected:
@@ -364,7 +406,10 @@ class WaveXLRApp(Adw.Application):
                     self.quit()
                 return
             try:
-                self._window = WaveXLRWindow(application=self)
+                self._window = WaveXLRWindow(
+                    application=self,
+                    on_mute_change=self._on_mute_change,
+                )
             except RuntimeError:
                 log.exception("Failed to initialize OpenWave UI")
                 self._activation_failed = True
@@ -392,8 +437,14 @@ class WaveXLRApp(Adw.Application):
             on_quit=self._quit_app,
         )
         self._tray.register()
+        if self._window and self._window._last_state:
+            self._tray.set_muted(self._window._last_state["mute"])
         # Keep app alive when window is hidden
         self.hold()
+
+    def _on_mute_change(self, muted):
+        if self._tray:
+            self._tray.set_muted(muted)
 
     def _toggle_mute(self):
         if self._window and self._window.xlr.connected:
@@ -462,13 +513,14 @@ class WaveXLRApp(Adw.Application):
     def _on_replug_done(self, dialog, result, tmp_win):
         dialog.choose_finish(result)
         tmp_win.close()
-        win = WaveXLRWindow(application=self)
+        win = WaveXLRWindow(application=self, on_mute_change=self._on_mute_change)
         self._window = win
         win.present()
 
     def do_shutdown(self):
         if self._window:
             self._window._stop_polling()
+            self._window._cancel_reconnect()
             self._window.xlr.disconnect()
         Adw.Application.do_shutdown(self)
 

@@ -101,7 +101,35 @@ python3 -c "from wavexlr.daemon import main; main()"
 ```
 
 It keeps Wave XLR capture active, restores the Wave XLR as default input, and
-mirrors hardware mute into PipeWire so browsers and apps see the mute state.
+mirrors confirmed hardware mute changes into PipeWire so browsers and apps see
+the mute state. By default the first hardware mute read is treated as a
+baseline, not immediately forced into PipeWire, and mute changes need two
+matching reads before they are applied. This keeps the physical mute button
+usable while reducing stale or noisy mute reads.
+
+Full hardware control sync for gain and headphone volume remains opt-in:
+
+```bash
+systemctl --user edit openwave.service
+# add:
+# [Service]
+# Environment=OPENWAVE_ENABLE_HARDWARE_SYNC=1
+```
+
+Useful mute-sync environment overrides:
+
+```bash
+# default: 1
+Environment=OPENWAVE_ENABLE_MUTE_SYNC=1
+# default: 0 for mute-only sync, 1 for full hardware sync
+Environment=OPENWAVE_SYNC_INITIAL_MUTE=0
+# default: 2
+Environment=OPENWAVE_MUTE_CONFIRMATIONS=2
+# default: 1.0 seconds
+Environment=OPENWAVE_SYNC_INTERVAL=0.5
+# default: 20 seconds
+Environment=OPENWAVE_PROCESSED_SOURCE_GRACE=20
+```
 
 Useful commands:
 

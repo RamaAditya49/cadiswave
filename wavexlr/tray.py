@@ -13,6 +13,8 @@ ITEM_XML = """
     <property name="ToolTip" type="(sa(iiay)ss)" access="read"/>
     <property name="Menu" type="o" access="read"/>
     <property name="ItemIsMenu" type="b" access="read"/>
+    <signal name="NewIcon"/>
+    <signal name="NewToolTip"/>
     <method name="Activate">
       <arg name="x" type="i" direction="in"/>
       <arg name="y" type="i" direction="in"/>
@@ -97,6 +99,7 @@ class TrayIcon:
         self._menu_reg_id = None
         self._name_id = None
         self._revision = 1
+        self._muted = False
         self._menu_items = {}  # id -> properties dict
 
     def register(self):
@@ -153,13 +156,21 @@ class TrayIcon:
         invocation.return_value(None)
 
     def _on_item_get_property(self, conn, sender, path, iface, prop):
+        icon_name = (
+            "microphone-sensitivity-muted-symbolic"
+            if self._muted
+            else "audio-input-microphone-symbolic"
+        )
         props = {
             "Category": GLib.Variant("s", "Hardware"),
             "Id": GLib.Variant("s", "openwave"),
             "Title": GLib.Variant("s", "OpenWave"),
             "Status": GLib.Variant("s", "Active"),
-            "IconName": GLib.Variant("s", "audio-input-microphone-symbolic"),
-            "ToolTip": GLib.Variant("(sa(iiay)ss)", ("", [], "OpenWave", "Elgato Wave XLR Control")),
+            "IconName": GLib.Variant("s", icon_name),
+            "ToolTip": GLib.Variant(
+                "(sa(iiay)ss)",
+                ("", [], "OpenWave", "Microphone muted" if self._muted else "Microphone live"),
+            ),
             "Menu": GLib.Variant("o", "/MenuBar"),
             "ItemIsMenu": GLib.Variant("b", False),
         }
@@ -176,7 +187,7 @@ class TrayIcon:
                 "icon-name": GLib.Variant("s", "audio-input-microphone-symbolic"),
             },
             2: {
-                "label": GLib.Variant("s", "Mute Mic"),
+                "label": GLib.Variant("s", "Unmute Mic" if self._muted else "Mute Mic"),
                 "visible": GLib.Variant("b", True),
                 "enabled": GLib.Variant("b", True),
                 "icon-name": GLib.Variant("s", "microphone-sensitivity-muted-symbolic"),
@@ -192,6 +203,34 @@ class TrayIcon:
                 "icon-name": GLib.Variant("s", "application-exit-symbolic"),
             },
         }
+
+    def set_muted(self, muted):
+        muted = bool(muted)
+        if muted == self._muted:
+            return
+        self._muted = muted
+        if self._menu_items:
+            self._menu_items[2]["label"] = GLib.Variant(
+                "s", "Unmute Mic" if muted else "Mute Mic"
+            )
+        if not self._bus:
+            return
+        for signal in ("NewIcon", "NewToolTip"):
+            self._bus.emit_signal(
+                None,
+                "/StatusNotifierItem",
+                "org.kde.StatusNotifierItem",
+                signal,
+                None,
+            )
+        self._revision += 1
+        self._bus.emit_signal(
+            None,
+            "/MenuBar",
+            "com.canonical.dbusmenu",
+            "LayoutUpdated",
+            GLib.Variant("(ui)", (self._revision, 0)),
+        )
 
     def _make_layout(self, item_id, depth):
         """Build a (ia{sv}av) variant for an item, recursing into children."""

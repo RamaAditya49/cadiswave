@@ -1,9 +1,8 @@
 """Wave XLR USB device backend.
 
-Uses raw libusb control transfers with wIndex=0x3303 to bypass the Linux
-kernel's interface routing. The kernel sees interface 3 (unclaimed) and
-lets the transfer through, while the firmware only checks the 0x33 prefix.
-No driver detach needed — audio is never interrupted.
+Uses libusb control transfers through the vendor-specific control interface.
+No driver detach is needed because the Wave XLR audio interfaces stay owned by
+snd-usb-audio and interface 3 has no kernel driver.
 """
 
 import ctypes
@@ -23,6 +22,7 @@ WVALUE_CONFIG = 0x0000
 WVALUE_METER = 0x0001
 WVALUE_DEVINFO = 0x000A
 WINDEX = 0x3303  # 0x3303 not 0x3300 — bypasses snd-usb-audio ownership check
+CONTROL_INTERFACE = 3
 CONFIG_LEN = 34
 METER_LEN = 10
 
@@ -48,6 +48,10 @@ _lib.libusb_open_device_with_vid_pid.argtypes = [ctypes.c_void_p, ctypes.c_uint1
 _lib.libusb_open_device_with_vid_pid.restype = ctypes.c_void_p
 _lib.libusb_close.argtypes = [ctypes.c_void_p]
 _lib.libusb_close.restype = None
+_lib.libusb_claim_interface.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.libusb_claim_interface.restype = ctypes.c_int
+_lib.libusb_release_interface.argtypes = [ctypes.c_void_p, ctypes.c_int]
+_lib.libusb_release_interface.restype = ctypes.c_int
 _lib.libusb_control_transfer.argtypes = [
     ctypes.c_void_p, ctypes.c_uint8, ctypes.c_uint8,
     ctypes.c_uint16, ctypes.c_uint16,
@@ -163,31 +167,43 @@ class WaveXLR:
         self._card = None
         self._last_fw = None  # last known firmware state for change detection
         self._owns_process_lock = False
+        self._owns_interface = False
 
     @property
     def connected(self):
         return self._handle is not None
 
     def connect(self):
-        _usb_process_lock()
-        handle = _lib.libusb_open_device_with_vid_pid(_ctx, VENDOR_ID, PRODUCT_ID)
-        if not handle:
-            _usb_process_unlock()
-            raise RuntimeError("Wave XLR not found")
-        self._handle = handle
-        self._owns_process_lock = True
-        self._card = _find_card()
+        with self._lock:
+            _usb_process_lock()
+            handle = _lib.libusb_open_device_with_vid_pid(_ctx, VENDOR_ID, PRODUCT_ID)
+            if not handle:
+                _usb_process_unlock()
+                raise RuntimeError("Wave XLR not found")
+            ret = _lib.libusb_claim_interface(handle, CONTROL_INTERFACE)
+            if ret < 0:
+                _lib.libusb_close(handle)
+                _usb_process_unlock()
+                raise RuntimeError(f"Wave XLR control interface unavailable (err {ret})")
+            self._handle = handle
+            self._owns_process_lock = True
+            self._owns_interface = True
+            self._card = _find_card()
 
     def disconnect(self, reset_state=True):
-        if self._handle:
-            _lib.libusb_close(self._handle)
-            self._handle = None
-        if self._owns_process_lock:
-            _usb_process_unlock()
-            self._owns_process_lock = False
-        self._card = None
-        if reset_state:
-            self._last_fw = None
+        with self._lock:
+            if self._handle:
+                if self._owns_interface:
+                    _lib.libusb_release_interface(self._handle, CONTROL_INTERFACE)
+                    self._owns_interface = False
+                _lib.libusb_close(self._handle)
+                self._handle = None
+            if self._owns_process_lock:
+                _usb_process_unlock()
+                self._owns_process_lock = False
+            self._card = None
+            if reset_state:
+                self._last_fw = None
 
     def _ctrl_read(self, wValue, length):
         """USB control read — no detach needed."""
