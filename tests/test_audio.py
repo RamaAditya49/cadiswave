@@ -155,6 +155,18 @@ class PWDumpTests(unittest.TestCase):
             processed_source,
         )
 
+    def test_audio_manager_detects_capture_without_data(self):
+        manager = audio.AudioManager()
+        manager._stall_timeout = 5
+        manager._last_data_at = 100.0
+
+        with patch.object(manager, "_cat_alive", return_value=True):
+            self.assertFalse(manager._capture_stalled(now=104.0))
+            self.assertTrue(manager._capture_stalled(now=106.0))
+
+        with patch.object(manager, "_cat_alive", return_value=False):
+            self.assertFalse(manager._capture_stalled(now=106.0))
+
 
 if __name__ == "__main__":
     unittest.main()

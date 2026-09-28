@@ -141,6 +141,27 @@ def _ensure_source_profile():
     return False
 
 
+def _reset_source_profile():
+    """Turn the Wave XLR profile off and on to reopen a stalled capture stream."""
+    for obj in _pw_dump():
+        if obj.get("type") != "PipeWire:Interface:Device":
+            continue
+        if not _is_wave_device(obj.get("info", {}).get("props", {})):
+            continue
+        try:
+            subprocess.run(
+                ["wpctl", "set-profile", str(obj.get("id")), "0"],
+                capture_output=True,
+                timeout=5,
+            )
+        except Exception as e:
+            log.warning(f"Failed to reset Wave XLR profile: {e}")
+            return False
+        time.sleep(1)
+        return _ensure_source_profile()
+    return False
+
+
 def _get_default_source_name():
     """Read the current PipeWire default audio source name."""
     try:
@@ -224,6 +245,8 @@ class AudioManager:
             else processed_source_grace
         )
         self._started_at = time.monotonic()
+        self._stall_timeout = _env_float("OPENWAVE_CAPTURE_STALL_TIMEOUT", 5.0, 1.0)
+        self._last_data_at = time.monotonic()
 
     @property
     def healthy(self):
@@ -259,20 +282,32 @@ class AudioManager:
     def _start_cat(self, source_name):
         """Start pw-cat to keep capture stream open."""
         self._kill_cat()
-        with open("/dev/null", "wb") as devnull:
-            self._cat_proc = subprocess.Popen(
-                [
-                    "pw-cat", "--record",
-                    "--target", source_name,
-                    "--channels", "1",
-                    "--format", "s16",
-                    "--rate", "48000",
-                    "-",
-                ],
-                stdout=devnull,
-                stderr=subprocess.DEVNULL,
-            )
+        self._cat_proc = subprocess.Popen(
+            [
+                "pw-cat", "--record",
+                "--target", source_name,
+                "--channels", "1",
+                "--format", "s16",
+                "--rate", "48000",
+                "-",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        self._last_data_at = time.monotonic()
+        threading.Thread(
+            target=self._drain_cat, args=(self._cat_proc.stdout,), daemon=True
+        ).start()
         log.info(f"Started capture keepalive (PID {self._cat_proc.pid})")
+
+    def _drain_cat(self, stdout):
+        """Read and drop captured audio, and record when data last arrived."""
+        for _ in iter(lambda: stdout.read(4096), b""):
+            self._last_data_at = time.monotonic()
+
+    def _capture_stalled(self, now=None):
+        now = time.monotonic() if now is None else now
+        return self._cat_alive() and now - self._last_data_at > self._stall_timeout
 
     def _cat_alive(self):
         return self._cat_proc is not None and self._cat_proc.poll() is None
@@ -318,6 +353,14 @@ class AudioManager:
                 if not self._cat_alive():
                     self._start_cat(source["name"])
                     time.sleep(1)
+
+                if self._capture_stalled():
+                    log.warning("Wave XLR capture stalled, resetting profile")
+                    self._kill_cat()
+                    _reset_source_profile()
+                    self._update_status(True, False)
+                    time.sleep(2)
+                    continue
 
                 healthy = self._cat_alive()
                 self._update_status(True, healthy)
