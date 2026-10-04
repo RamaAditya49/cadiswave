@@ -62,6 +62,8 @@ File mockup, arsip desain, dan gambar referensi tidak disertakan dalam repositor
 
 ## Kredit
 
+CadisWave dikembangkan dan dikelola oleh **Rama Aditya (CADIS)**.
+
 OpenWave dan pemetaan protokol: rikkichy dan kontributor.
-CadisWave dan artwork aplikasi baru: CADIS dan kontributor.
+CadisWave dan artwork aplikasi baru: Rama Aditya (CADIS) dan kontributor.
 [Lisensi MIT](LICENSE) tetap memuat copyright asli.

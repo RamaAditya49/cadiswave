@@ -501,10 +501,11 @@ impl AppUi {
                 let dialog = adw::AboutDialog::builder()
                     .application_name("CadisWave")
                     .application_icon("cadiswave")
-                    .developer_name("CADIS")
+                    .developer_name("Rama Aditya")
+                    .developers(["Rama Aditya https://github.com/RamaAditya49"])
                     .version(crate::VERSION)
                     .website("https://github.com/RamaAditya49/cadiswave")
-                    .copyright("2025 rikkichy; 2026 CADIS")
+                    .copyright("2026 Rama Aditya and CADIS; 2025 rikkichy")
                     .license_type(gtk::License::MitX11)
                     .build();
                 dialog.add_credit_section(Some("OpenWave"), &["rikkichy — upstream author"]);
@@ -1533,6 +1534,8 @@ mod tests {
         } else {
             data.join("data/style.css")
         };
+        gtk::IconTheme::for_display(&gtk::gdk::Display::default().unwrap())
+            .add_search_path(data.join("icons"));
         let provider = gtk::CssProvider::new();
         provider.load_from_path(css);
         gtk::style_context_add_provider_for_display(
@@ -1610,12 +1613,26 @@ mod tests {
             ui.render_widgets();
             shot(&format!("device-{name}"));
             ui.device_settings.dialog.present(Some(&ui.window));
+            for scroll in descendants::<gtk::ScrolledWindow>(&ui.device_settings.dialog) {
+                scroll.vadjustment().set_value(0.0);
+            }
             shot(&format!("settings-{name}"));
+            for scroll in descendants::<gtk::ScrolledWindow>(&ui.device_settings.dialog) {
+                if scroll.is_mapped() {
+                    let adjustment = scroll.vadjustment();
+                    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+                }
+            }
+            shot(&format!("settings-footer-{name}"));
             ui.device_settings.dialog.close();
             settle();
             ui.compact_window.present();
             shot(&format!("compact-{name}"));
             ui.compact_window.set_visible(false);
+            ui.window.lookup_action("about").unwrap().activate(None);
+            shot(&format!("about-{name}"));
+            ui.window.visible_dialog().unwrap().close();
+            settle();
         }
         ui.window.set_default_size(1024, 768);
         shot("device-1024");

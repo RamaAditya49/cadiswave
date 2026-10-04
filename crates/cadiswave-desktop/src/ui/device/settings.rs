@@ -128,15 +128,19 @@ impl DeviceSettings {
         save.add_css_class("suggested-action");
         buttons.append(&revert);
         buttons.append(&save);
-        app.add(&buttons);
+        let footer = gtk::Box::new(gtk::Orientation::Vertical, 12);
+        footer.set_margin_top(16);
+        footer.append(&buttons);
+        app.add(&footer);
         let feedback = gtk::Label::new(None);
         feedback.set_wrap(true);
         let details = gtk::Label::new(None);
         details.set_wrap(true);
         details.set_selectable(true);
         crate::i18n::protect(&details);
-        app.add(&feedback);
-        app.add(&details);
+        feedback.set_xalign(1.0);
+        footer.append(&feedback);
+        footer.append(&details);
         let target = model.clone();
         let feedback_target = feedback.downgrade();
         save.connect_clicked(move |button| {
@@ -156,6 +160,7 @@ impl DeviceSettings {
                 Err(error) => PersistenceState::Failed(format!("{error:?}")),
             };
             if let Some(feedback) = feedback_target.upgrade() {
+                feedback.set_visible(true);
                 feedback.set_text(&crate::i18n::tr(
                     if matches!(*target.state.borrow(), PersistenceState::Pending(_)) {
                         "save-pending"
@@ -227,18 +232,21 @@ impl DeviceSettings {
         self.language.set_sensitive(!pending);
         self.save.set_sensitive(!pending);
         self.revert.set_sensitive(!pending);
-        self.feedback
-            .set_text(&crate::i18n::tr(match &*self.model.state.borrow() {
-                PersistenceState::Pending(_) => "save-pending",
-                PersistenceState::Saved => "save-success",
-                PersistenceState::Failed(_) => "save-failed",
-                PersistenceState::Idle if self.model.dirty.get() => "unsaved-settings",
-                _ => "save-application",
-            }));
-        self.details.set_text(&match &*self.model.state.borrow() {
+        let feedback = match &*self.model.state.borrow() {
+            PersistenceState::Pending(_) => crate::i18n::tr("save-pending"),
+            PersistenceState::Saved => crate::i18n::tr("save-success"),
+            PersistenceState::Failed(_) => crate::i18n::tr("save-failed"),
+            PersistenceState::Idle if self.model.dirty.get() => crate::i18n::tr("unsaved-settings"),
+            PersistenceState::Idle => String::new(),
+        };
+        self.feedback.set_text(&feedback);
+        self.feedback.set_visible(!feedback.is_empty());
+        let details = match &*self.model.state.borrow() {
             PersistenceState::Failed(message) => message.clone(),
             _ => String::new(),
-        });
+        };
+        self.details.set_text(&details);
+        self.details.set_visible(!details.is_empty());
     }
     pub fn retranslate(&self) {
         crate::i18n::retranslate();
@@ -263,6 +271,57 @@ fn language_index(choice: LanguageChoice) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    #[ignore = "Requires the isolated GTK runner"]
+    fn settings_actions_have_space_from_the_language_row_and_feedback() {
+        adw::init().unwrap();
+        let rig = crate::ui::test_support::Rig::new(serde_json::json!({}), vec![]);
+        let locale = Rc::new(RefCell::new(
+            crate::i18n::I18n::new(LanguageChoice::English, "en").unwrap(),
+        ));
+        crate::i18n::activate(locale.clone());
+        let settings = DeviceSettings::new(DeviceControls::new(rig.handle()), locale.clone());
+        let window = adw::Window::builder()
+            .default_width(640)
+            .default_height(900)
+            .build();
+        window.present();
+        settings.dialog.present(Some(&window));
+        for language in [LanguageChoice::English, LanguageChoice::Indonesian] {
+            locale.borrow_mut().set_choice(language, "en").unwrap();
+            settings.retranslate();
+            settings.language.set_selected(2);
+            settings.render(&rig.snapshot());
+            let until = std::time::Instant::now() + std::time::Duration::from_millis(500);
+            while std::time::Instant::now() < until {
+                while glib::MainContext::default().pending() {
+                    glib::MainContext::default().iteration(false);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            let language = settings.language.compute_bounds(&settings.dialog).unwrap();
+            let save = settings.save.compute_bounds(&settings.dialog).unwrap();
+            let revert = settings.revert.compute_bounds(&settings.dialog).unwrap();
+            let feedback = settings.feedback.compute_bounds(&settings.dialog).unwrap();
+            assert!(
+                save.y() - (language.y() + language.height()) >= 16.0,
+                "Language-to-action gap: {}",
+                save.y() - language.y() - language.height()
+            );
+            assert!(save.x() - (revert.x() + revert.width()) >= 12.0);
+            assert!(feedback.y() - (save.y() + save.height()) >= 12.0);
+        }
+        settings.model.dirty.set(false);
+        settings.render(&rig.snapshot());
+        assert!(!settings.feedback.is_visible());
+        settings.save.emit_clicked();
+        assert!(
+            settings.feedback.is_visible(),
+            "Pending save feedback must become visible immediately"
+        );
+        settings.dialog.close();
+        window.close();
+    }
     #[test]
     #[ignore = "Requires the isolated GTK runner"]
     fn failed_save_retains_the_draft_and_reports_the_store_error() {

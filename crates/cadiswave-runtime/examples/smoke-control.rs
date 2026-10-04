@@ -658,6 +658,21 @@ fn property(
     .as_variant()
     .ok_or_else(|| "Invalid property variant".into())
 }
+fn without_retired<T>(value: Result<T>) -> Result<Option<T>> {
+    match value {
+        Err(error)
+            if error.downcast_ref::<glib::Error>().is_some_and(|error| {
+                let name = gio::DBusError::remote_error(error);
+                name.as_deref() == Some("org.freedesktop.DBus.Error.UnknownObject")
+                    || (name.as_deref() == Some("org.freedesktop.DBus.Error.UnknownMethod")
+                        && error.message().contains("Object does not exist at path"))
+            }) =>
+        {
+            Ok(None)
+        }
+        value => value.map(Some),
+    }
+}
 fn accessible_find(
     bus: &gio::DBusConnection,
     name: &str,
@@ -689,17 +704,19 @@ fn accessible_find(
         .and_then(|v| v.get::<String>())
         .unwrap_or_default();
         if dump {
-            let role = call(
+            // GTK can retire registry objects between diagnostic reads.
+            let Some(role) = without_retired(call(
                 bus,
                 &destination,
                 &path,
                 "org.a11y.atspi.Accessible",
                 "GetRoleName",
                 None,
-            )?
-            .get::<(String,)>()
-            .ok_or("Invalid accessible role")?
-            .0;
+            ))?
+            else {
+                continue;
+            };
+            let role = role.get::<(String,)>().ok_or("Invalid accessible role")?.0;
             println!(
                 "{}{} {} [{role}] {}",
                 " ".repeat(depth),
@@ -993,5 +1010,33 @@ mod tests {
         assert!(
             parse_graph(r#"[{"id":7,"type":"PipeWire:Interface:Node"}] [{"id":7,"info":"#).is_err()
         );
+    }
+}
+
+#[cfg(test)]
+mod accessibility_tests {
+    use super::*;
+    #[test]
+    fn retired_accessibility_objects_do_not_abort_a_diagnostic_walk() {
+        let error = gio::DBusError::new_for_dbus_error(
+            "org.freedesktop.DBus.Error.UnknownMethod",
+            "Object does not exist at path /retired",
+        );
+        let result = without_retired::<()>(Err(error.into())).unwrap();
+        assert!(result.is_none());
+    }
+    #[test]
+    fn diagnostic_walk_preserves_live_values_and_real_errors() {
+        assert_eq!(without_retired(Ok(7)).unwrap(), Some(7));
+        for (name, message) in [
+            ("org.freedesktop.DBus.Error.AccessDenied", "Access denied"),
+            (
+                "org.freedesktop.DBus.Error.UnknownMethod",
+                "No such method GetRoleName",
+            ),
+        ] {
+            let error = gio::DBusError::new_for_dbus_error(name, message);
+            assert!(without_retired::<()>(Err(error.into())).is_err());
+        }
     }
 }

@@ -15,8 +15,8 @@ The installed application uses the host runtime libraries.
 | --- | --- |
 | Cargo formatting | Passed |
 | Clippy, all workspace targets, warnings denied | Passed |
-| Workspace tests | 418 passed; 41 marked ignored |
-| Isolated GTK tests | All 24 display tests passed |
+| Workspace tests | 420 passed; 42 marked ignored |
+| Isolated GTK tests | All 25 display tests passed |
 | Release binaries and runtime examples | Built with the locked dependency set |
 | Installed application smoke | Passed with private audio, GTK, D-Bus, and device isolation |
 | Desktop entry and AppStream | Validated |
@@ -40,6 +40,15 @@ All four regressions and the complete software checks passed after correction.
 No minor review findings remain deferred.
 The final native Wayland installation retained the default input, mute, and 75 dB gain.
 Live accessibility inspection confirmed the dial, headphone, and low-impedance control names.
+
+The settings footer has 16 pixels above its actions and 12 pixels between actions and status text.
+Geometry checks passed in English and Indonesian.
+Idle status text is hidden; pending save feedback appears immediately.
+Rama Aditya appears in About, both READMEs, AppStream, package metadata, and the license.
+The original copyright remains intact.
+An initial CI smoke failed on a retired GTK accessibility object during a diagnostic tree walk.
+The smoke driver now skips that specific retired-object error and preserves other errors.
+Regression checks and the complete installed smoke passed locally after correction.
 
 ## Physical acceptance
 

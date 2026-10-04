@@ -1,4 +1,4 @@
-# Maintainer: CADIS <agent@cadis.digital>
+# Maintainer: Rama Aditya (CADIS)
 # Use the prepared, vendored source archive from packaging/build-release.sh.
 # render-aur replaces only pkgver, source, sha256sums and _srcdir below.
 pkgname=cadiswave

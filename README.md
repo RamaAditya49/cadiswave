@@ -68,6 +68,8 @@ No design archive, reference image, or mockup runtime is included in this reposi
 
 ## Credits
 
+CadisWave is developed and maintained by **Rama Aditya (CADIS)**.
+
 OpenWave and its protocol work: rikkichy and contributors.
-CadisWave implementation and original application artwork: CADIS and contributors.
+CadisWave implementation and original application artwork: Rama Aditya (CADIS) and contributors.
 The [MIT license](LICENSE) retains the original copyright.

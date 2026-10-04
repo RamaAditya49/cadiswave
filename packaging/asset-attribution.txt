@@ -1,4 +1,4 @@
-CadisWave is maintained by CADIS and contributors.
+CadisWave is maintained by Rama Aditya (CADIS) and contributors.
 Project: https://github.com/RamaAditya49/cadiswave
 CadisWave derives from OpenWave by rikkichy and contributors.
 Upstream: https://github.com/rikkichy/openwave
