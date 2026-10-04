@@ -20,7 +20,7 @@ The default report retains useful versions (including the native compiler/build 
 - Combine `--full --device` only when detailed device info/config bytes are needed and you intend to share those details after review.
 - `-o FILE` / `--output FILE` selects the report destination. Nothing is uploaded automatically.
 
-Privacy filtering is not a guarantee of anonymity: review reports, especially full reports, before attaching them to [an issue](https://github.com/rikkichy/openwave/issues). Include the symptom, exact PID, relevant software versions, expected route and whether the problem follows unplugging or an audio-server restart. Probe dumps have no equivalent redaction and are [engineer-only](protocol.md#engineer-only-probe).
+Privacy filtering is not a guarantee of anonymity: review reports, especially full reports, before attaching them to [an issue](https://github.com/RamaAditya49/cadiswave/issues). Include the symptom, exact PID, relevant software versions, expected route and whether the problem follows unplugging or an audio-server restart. Probe dumps have no equivalent redaction and are [engineer-only](protocol.md#engineer-only-probe).
 
 ## Device missing or USB reads failing
 

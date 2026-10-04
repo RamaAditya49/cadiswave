@@ -32,6 +32,12 @@ Verify changed hardware controls on the exact USB profile.
 Retain and restore the previous hardware state.
 Do not change phantom power during demonstrations or automatic tests.
 
+## Project documentation
+
+Keep English and Indonesian product facts consistent.
+Read [repository discoverability](docs/discoverability.md) before changing the README or GitHub metadata.
+Link hardware claims to verified profiles and test evidence.
+
 ## Commits
 
 End every commit message with this trailer after a blank line:

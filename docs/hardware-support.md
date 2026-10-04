@@ -10,13 +10,15 @@ CadisWave enables exact VID:PID profiles, not a family-wide match on the word �
 | XLR Dock MK.2 | `00c7` | Enabled three-block vendor protocol; read-only `0103` / `0203` bank detection |
 | Any other PID, including `00b6` | Other | Not enabled by these profiles |
 
-“Enabled” means the implementation contains that exact profile, not that every firmware or multi-unit configuration has passed physical acceptance testing. The `00c7` implementation follows [OpenXLR's recorded hardware findings](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and its author's [Dock verification report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393). Those are upstream hardware results, not physical certification of this native backend. CadisWave's checks here use protocol fixtures and an actual device-free GTK surface. No physical `00c7` run was performed.
+“Enabled” means the implementation contains that exact profile, not that every firmware or multi-unit configuration has passed physical acceptance testing. The `00c7` implementation follows [OpenXLR's recorded hardware findings](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and its author's [Dock verification report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393). Those are upstream hardware results, not physical certification of this native backend. The original Wave XLR (`007d`) passed [physical checks](verification.md#physical-acceptance).
+Other profiles passed protocol checks with device-free GTK fixtures.
+No physical `00c7` run was performed.
 
 ## Controls
 
 | Control | `007d` / `00a6` profile | `0070` profile | `00c7` profile |
 |---|---|---|---|
-| Microphone gain | Q8.8 dB, up to 80 dB | Q8.8 dB, up to 40 dB | Integer dB, 0–80 dB |
+| Microphone gain | Q8.8 dB; `007d`: up to 75 dB; `00a6`: up to 80 dB | Q8.8 dB, up to 40 dB | Integer dB, 0–80 dB |
 | Mute | Yes | Yes | Yes |
 | Headphone volume | Signed Q8.8 dB | Signed Q8.8 dB | −60 to 0 dB, quarter-dB steps |
 | 48 V phantom power | Yes, config byte 6 | No | Yes, settings byte 1 bit 1 |

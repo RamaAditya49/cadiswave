@@ -1,9 +1,9 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/RamaAditya49/cadiswave/main/icons/cadiswave.png" alt="CadisWave icon" width="96" height="96">
 </p>
-<h1 align="center">CadisWave</h1>
-<p align="center"><strong>Control your Wave on Linux.</strong></p>
-<p align="center">Microphone controls, audio routing, and a native desktop for daily Wave XLR use.</p>
+<h1 align="center">CadisWave — Wave XLR software for Linux</h1>
+<p align="center"><strong>Open-source Elgato Wave XLR controls and a PipeWire audio mixer.</strong></p>
+<p align="center">Adjust microphone gain, mute, phantom power, and headphones from a native Linux desktop.</p>
 <p align="center">
   <a href="https://github.com/RamaAditya49/cadiswave/actions/workflows/tests.yml"><img src="https://github.com/RamaAditya49/cadiswave/actions/workflows/tests.yml/badge.svg?branch=main" alt="Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7dff9b?labelColor=141a17" alt="MIT license"></a>
@@ -12,10 +12,26 @@
 <p align="center"><strong>Rust · GTK4 · libadwaita · PipeWire</strong></p>
 <p align="center">
   <a href="README.id.md">Bahasa Indonesia</a> ·
-  <a href="#build-and-run">Build and run</a> ·
+  <a href="#build-and-run">Install from source</a> ·
+  <a href="docs/wave-xlr-linux.md">Wave XLR Linux setup</a> ·
+  <a href="#frequently-asked-questions">FAQ</a> ·
   <a href="CONTRIBUTING.md">Contribute</a> ·
   <a href="docs/verification.md">Test results</a>
 </p>
+
+**CadisWave is free, open-source Wave XLR software for Linux**, developed by [Rama Aditya](https://github.com/RamaAditya49) (CADIS).
+It provides Elgato microphone controls, application audio routing, independent mixes, and software effects through PipeWire.
+Use it as a native Linux alternative for Wave Link control and mixing workflows.
+See the [feature limits](#device-support) before switching.
+
+| Project facts | Details |
+| --- | --- |
+| Platform | Linux desktop with PipeWire; native Rust, GTK4, and libadwaita |
+| Physically tested device | Original Elgato Wave XLR, USB `0fd9:007d` |
+| Interface languages | English and Bahasa Indonesia |
+| Install route | [Build from source](#build-and-run); see [Linux setup](docs/wave-xlr-linux.md) |
+| License and maintainer | [MIT](LICENSE); Rama Aditya (CADIS) |
+| Test evidence | [Software checks and physical results](docs/verification.md), recorded on 2026-10-04 |
 
 ![CadisWave device dashboard with input meters, gain dial, and headphone controls](docs/images/device-en.png)
 
@@ -111,6 +127,53 @@ Follow the [migration and recovery guide](docs/migration.md).
 
 The desktop runtime owns USB synchronization, including hidden tray operation.
 The capture daemon maintains input streams. It does not replace the desktop USB owner.
+
+## Frequently asked questions
+
+### What software controls Elgato Wave XLR on Linux?
+
+CadisWave controls the original Wave XLR on Linux through USB and ALSA synchronization.
+It provides gain, mute, 48 V phantom power, headphone volume, and low-impedance controls.
+See [physical test results](docs/verification.md#physical-acceptance) and the [setup guide](docs/wave-xlr-linux.md).
+
+### Does Elgato Wave Link support Linux?
+
+Elgato's [Wave Link 3 setup guide](https://help.elgato.com/hc/en-us/articles/46941178829585-Wave-Link-3-0-Software-Initial-Setup) lists Windows, Mac, and Windows on Arm.
+It does not list Linux.
+CadisWave is an independent Linux application for device controls and PipeWire mixing.
+It does not provide every Wave Link feature.
+
+### Can I mix game, chat, browser, and microphone audio?
+
+Yes. Use the PipeWire mixer to manage application sources, capture sources, sends, independent mixes, and outputs.
+Select a published mix as the input in OBS or a voice application.
+Read the [routing walkthrough](docs/wave-xlr-linux.md#mix-application-and-microphone-audio) before changing your active audio routes.
+
+### Which Linux distributions have been tested?
+
+Physical checks used Zorin OS 18.1 with GTK 4.14.5, libadwaita 1.5.0, and PipeWire 1.0.5.
+CI runs on Ubuntu 24.04.
+The [Bazzite and Fedora Atomic guide](docs/install-bazzite.md) describes another installation route; those images have no recorded physical acceptance here.
+See [verification](docs/verification.md) for build dependencies and test limits.
+
+### Is CadisWave a complete Wave Link replacement?
+
+CadisWave provides device controls, routing, scenes, and host-side effects.
+Clipguard control, hardware low-cut, LED changes, device persistence, and sample-rate changes remain unavailable.
+Original Wave XLR hardware monitor mix is not mapped.
+See [device support](#device-support) for each model's scope.
+
+### Where can I download or install CadisWave?
+
+Use the [source installation steps](#build-and-run) for the current native application.
+Existing `v0.1.x` releases belong to the earlier OpenWave application.
+They are not current native CadisWave builds.
+
+### Can I use CadisWave in Indonesian?
+
+Yes. Select English or Bahasa Indonesia in Settings.
+Language changes do not restart the audio or USB workers.
+Read the [Indonesian README](README.id.md) for installation and support details.
 
 ## Contribute
 

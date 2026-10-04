@@ -1,9 +1,9 @@
 <p align="center">
   <img src="https://raw.githubusercontent.com/RamaAditya49/cadiswave/main/icons/cadiswave.png" alt="CadisWave icon" width="96" height="96">
 </p>
-<h1 align="center">CadisWave</h1>
-<p align="center"><strong>Kontrol Wave kamu di Linux.</strong></p>
-<p align="center">Atur mikrofon, routing audio, dan Wave XLR sehari-hari lewat aplikasi desktop native.</p>
+<h1 align="center">CadisWave — Software Wave XLR untuk Linux</h1>
+<p align="center"><strong>Kontrol Elgato Wave XLR dan mixer audio PipeWire yang open source.</strong></p>
+<p align="center">Atur gain mikrofon, mute, phantom power, dan headphone lewat aplikasi desktop Linux native.</p>
 <p align="center">
   <a href="https://github.com/RamaAditya49/cadiswave/actions/workflows/tests.yml"><img src="https://github.com/RamaAditya49/cadiswave/actions/workflows/tests.yml/badge.svg?branch=main" alt="Pengujian"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-7dff9b?labelColor=141a17" alt="Lisensi MIT"></a>
@@ -12,10 +12,26 @@
 <p align="center"><strong>Rust · GTK4 · libadwaita · PipeWire</strong></p>
 <p align="center">
   <a href="README.md">English</a> ·
-  <a href="#build-dan-jalankan">Build dan jalankan</a> ·
+  <a href="#build-dan-jalankan">Pasang dari source</a> ·
+  <a href="docs/wave-xlr-linux.id.md">Setup Wave XLR di Linux</a> ·
+  <a href="#pertanyaan-umum">FAQ</a> ·
   <a href="CONTRIBUTING.md">Kontribusi</a> ·
   <a href="docs/verification.md">Hasil pengujian</a>
 </p>
+
+**CadisWave adalah software Wave XLR untuk Linux yang gratis dan open source**, dikembangkan oleh [Rama Aditya](https://github.com/RamaAditya49) (CADIS).
+Aplikasi ini menyediakan kontrol mikrofon Elgato, routing audio aplikasi, mix terpisah, dan efek software melalui PipeWire.
+CadisWave bisa dipakai sebagai alternatif Linux native untuk alur kontrol dan mixing Wave Link.
+Baca [batas dukungan](#dukungan-perangkat) sebelum beralih.
+
+| Ringkasan proyek | Detail |
+| --- | --- |
+| Platform | Desktop Linux dengan PipeWire; Rust, GTK4, dan libadwaita native |
+| Perangkat yang diuji fisik | Elgato Wave XLR asli, USB `0fd9:007d` |
+| Bahasa antarmuka | English dan Bahasa Indonesia |
+| Pemasangan | [Build dari source](#build-dan-jalankan); lihat [setup Linux](docs/wave-xlr-linux.id.md) |
+| Lisensi dan pengembang | [MIT](LICENSE); Rama Aditya (CADIS) |
+| Bukti pengujian | [Pemeriksaan software dan hasil fisik](docs/verification.md), dicatat pada 2026-10-04 |
 
 ![Dashboard perangkat CadisWave dengan meter input, dial gain, dan kontrol headphone](docs/images/device-id.png)
 
@@ -111,6 +127,53 @@ Ikuti [panduan migrasi dan pemulihan](docs/migration.md).
 
 Aplikasi desktop memiliki sinkronisasi USB, termasuk saat tersembunyi melalui tray.
 Daemon capture mempertahankan stream input; daemon tersebut bukan pengganti worker USB aplikasi desktop.
+
+## Pertanyaan umum
+
+### Software apa yang bisa mengontrol Elgato Wave XLR di Linux?
+
+CadisWave mengontrol Wave XLR asli di Linux melalui USB dan sinkronisasi ALSA.
+Kontrolnya mencakup gain, mute, phantom power 48 V, volume headphone, dan low impedance.
+Lihat [hasil pengujian fisik](docs/verification.md#physical-acceptance) dan [panduan setup](docs/wave-xlr-linux.id.md).
+
+### Apakah Elgato Wave Link mendukung Linux?
+
+[Panduan setup Wave Link 3 dari Elgato](https://help.elgato.com/hc/en-us/articles/46941178829585-Wave-Link-3-0-Software-Initial-Setup) mencantumkan Windows, Mac, dan Windows on Arm.
+Linux tidak tercantum.
+CadisWave adalah aplikasi Linux independen untuk kontrol perangkat dan mixing PipeWire.
+Tidak semua fitur Wave Link tersedia di CadisWave.
+
+### Bisa mencampur audio game, chat, browser, dan mikrofon?
+
+Bisa. Mixer PipeWire mengelola sumber aplikasi, sumber capture, send, mix terpisah, dan output.
+Pilih input mix yang diterbitkan di OBS atau aplikasi panggilan.
+Baca [alur routing](docs/wave-xlr-linux.id.md#mix-audio-aplikasi-dan-mikrofon) sebelum mengubah rute audio yang sedang dipakai.
+
+### Distro Linux apa yang sudah diuji?
+
+Pengujian fisik menggunakan Zorin OS 18.1, GTK 4.14.5, libadwaita 1.5.0, dan PipeWire 1.0.5.
+CI berjalan di Ubuntu 24.04.
+[Panduan Bazzite dan Fedora Atomic](docs/install-bazzite.md) menjelaskan jalur pemasangan lain; belum ada pengujian fisik yang tercatat pada image tersebut.
+Lihat [verifikasi](docs/verification.md) untuk dependensi build dan batas pengujian.
+
+### Apakah CadisWave menggantikan semua fitur Wave Link?
+
+CadisWave menyediakan kontrol perangkat, routing, scene, dan efek yang diproses di komputer.
+Kontrol Clipguard, hardware low-cut, perubahan LED, penyimpanan ke perangkat, dan perubahan sample rate belum tersedia.
+Mix monitor hardware Wave XLR asli belum dipetakan.
+Lihat [dukungan perangkat](#dukungan-perangkat) untuk batas tiap model.
+
+### Di mana bisa mengunduh atau memasang CadisWave?
+
+Gunakan [langkah pemasangan dari source](#build-dan-jalankan) untuk aplikasi native saat ini.
+Rilis `v0.1.x` yang masih tersedia berasal dari aplikasi OpenWave sebelumnya.
+Rilis tersebut bukan build CadisWave native saat ini.
+
+### Apakah CadisWave tersedia dalam bahasa Indonesia?
+
+Ya. Pilih English atau Bahasa Indonesia di Pengaturan.
+Pergantian bahasa tidak memulai ulang worker audio atau USB.
+[README bahasa Inggris](README.md) menyediakan informasi yang setara.
 
 ## Kontribusi
 
