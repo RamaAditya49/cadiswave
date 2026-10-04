@@ -610,7 +610,7 @@ impl Default for Preferences {
         Self {
             language: crate::locale::LanguageChoice::System,
             width: 1280,
-            height: 720,
+            height: 800,
             maximized: false,
             offered_capture_nodes: Vec::new(),
             gain_locked: false,
@@ -624,8 +624,8 @@ impl Preferences {
         let mut map = object(value, "preferences")?;
         let mut prefs = Self::default();
         for (key, default, minimum) in [
-            ("width", &mut prefs.width, 820),
-            ("height", &mut prefs.height, 480),
+            ("width", &mut prefs.width, 800),
+            ("height", &mut prefs.height, 600),
         ] {
             if let Some(value) = map.remove(key) {
                 *default =

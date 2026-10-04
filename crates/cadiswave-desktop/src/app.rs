@@ -96,6 +96,14 @@ pub fn run(args: Vec<String>) -> i32 {
         }
     });
     let code: i32 = application.run_with_args(&args).into();
+    if let Some(ui) = state.borrow().as_ref() {
+        if let Some(mut tail) = ui.event_tail.borrow_mut().take() {
+            if let Err(error) = tail.stop() {
+                eprintln!("cadiswave: {error}");
+                failed.set(true);
+            }
+        }
+    }
     // Application::shutdown must not join workers. Even unusual loop exits drain here,
     // after GTK has returned, and retain ownership of temporary inspection threads.
     if let Some(ui) = state.borrow_mut().take() {
@@ -134,6 +142,9 @@ struct AppUi {
     matrix: RefCell<MatrixView>,
     sidebar: RefCell<Sidebar>,
     split: adw::OverlaySplitView,
+    pages: gtk::Stack,
+    device_page: crate::ui::device::DevicePage,
+    event_tail: RefCell<Option<cadiswave_runtime::events::EventTail>>,
     title: adw::WindowTitle,
     warning: gtk::MenuButton,
     warning_text: gtk::Label,
@@ -197,10 +208,11 @@ impl AppUi {
             let window = adw::ApplicationWindow::builder()
                 .application(&application)
                 .title("CadisWave")
-                .default_width(snapshot.preferences.width.max(820))
-                .default_height(snapshot.preferences.height.max(480))
+                .default_width(snapshot.preferences.width.max(800))
+                .default_height(snapshot.preferences.height.max(600))
                 .build();
-            window.set_size_request(820, 480);
+            window.set_size_request(800, 600);
+            window.add_css_class("cadiswave");
             if snapshot.preferences.maximized {
                 window.maximize();
             }
@@ -281,7 +293,22 @@ impl AppUi {
             let sidebar = Sidebar::new(icons.clone(), submit.clone());
             split.set_content(Some(&matrix.widget));
             split.set_sidebar(Some(&sidebar.widget));
-            content.append(&split);
+            let pages = gtk::Stack::new();
+            pages.set_vexpand(true);
+            let device_page = crate::ui::device::DevicePage::new(
+                crate::ui::device::controls::DeviceControls::new(handle.clone()),
+                i18n.clone(),
+            );
+            pages.add_titled(
+                &device_page.widget,
+                Some("device"),
+                &crate::i18n::tr("device-page"),
+            );
+            pages.add_titled(&split, Some("mixer"), &crate::i18n::tr("mixer"));
+            let switcher = gtk::StackSwitcher::new();
+            switcher.set_stack(Some(&pages));
+            header.pack_start(&switcher);
+            content.append(&pages);
             window.set_content(Some(&content));
             Self {
                 application: application.clone(),
@@ -293,6 +320,9 @@ impl AppUi {
                 matrix: RefCell::new(matrix),
                 sidebar: RefCell::new(sidebar),
                 split,
+                pages,
+                device_page,
+                event_tail: RefCell::new(cadiswave_runtime::events::EventTail::start().ok()),
                 title,
                 warning,
                 warning_text,
@@ -327,6 +357,20 @@ impl AppUi {
             }
         });
         let weak = Rc::downgrade(&ui);
+        glib::timeout_add_local(Duration::from_millis(500), move || {
+            let Some(ui) = weak.upgrade() else {
+                return glib::ControlFlow::Break;
+            };
+            if ui.stopped.get() {
+                return glib::ControlFlow::Break;
+            }
+            ui.device_page.set_narrow(ui.window.width() < 1100);
+            if let Some(tail) = ui.event_tail.borrow().as_ref() {
+                ui.device_page.set_events(&tail.latest());
+            }
+            glib::ControlFlow::Continue
+        });
+        let weak = Rc::downgrade(&ui);
         ui.window.connect_close_request(move |_| {
             if let Some(ui) = weak.upgrade() {
                 if let Some(dialog) = ui
@@ -359,6 +403,7 @@ impl AppUi {
         settings.connect_activate(move |_, _| {
             if let Some(ui) = weak.upgrade() {
                 ui.present_main_window(false);
+                ui.pages.set_visible_child_name("mixer");
                 ui.split.set_show_sidebar(true);
                 let sidebar = ui.sidebar.borrow();
                 sidebar.render(ui.handle.snapshot());
@@ -366,6 +411,59 @@ impl AppUi {
             }
         });
         ui.window.add_action(&settings);
+        let about = gio::SimpleAction::new("about", None);
+        let weak = Rc::downgrade(&ui);
+        about.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                let dialog = adw::AboutDialog::builder()
+                    .application_name("CadisWave")
+                    .application_icon("cadiswave")
+                    .developer_name("CADIS")
+                    .version(crate::VERSION)
+                    .website("https://github.com/RamaAditya49/cadiswave")
+                    .copyright("2025 rikkichy; 2026 CADIS")
+                    .license_type(gtk::License::MitX11)
+                    .build();
+                dialog.add_credit_section(Some("OpenWave"), &["rikkichy — upstream author"]);
+                dialog.present(Some(&ui.window));
+            }
+        });
+        ui.window.add_action(&about);
+        let key = gtk::EventControllerKey::new();
+        let weak = Rc::downgrade(&ui);
+        key.connect_key_pressed(move |_, key, _, modifiers| {
+            let Some(ui) = weak.upgrade() else {
+                return glib::Propagation::Proceed;
+            };
+            if gtk::prelude::GtkWindowExt::focus(&ui.window).is_some_and(|focus| {
+                focus.is::<gtk::Entry>()
+                    || focus.is::<gtk::TextView>()
+                    || focus.is::<gtk::SpinButton>()
+            }) {
+                return glib::Propagation::Proceed;
+            }
+            if modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) && key == gtk::gdk::Key::r {
+                ui.submit_command(AppCommand::Reconnect);
+                return glib::Propagation::Stop;
+            }
+            if modifiers.intersects(
+                gtk::gdk::ModifierType::CONTROL_MASK
+                    | gtk::gdk::ModifierType::ALT_MASK
+                    | gtk::gdk::ModifierType::SUPER_MASK,
+            ) {
+                return glib::Propagation::Proceed;
+            }
+            if key == gtk::gdk::Key::m || key == gtk::gdk::Key::M {
+                let p = crate::ui::device::projection::DeviceProjection::from_snapshot(
+                    &ui.handle.snapshot(),
+                );
+                let _ = crate::ui::device::controls::DeviceControls::new(ui.handle.clone())
+                    .toggle_mute(&p);
+                return glib::Propagation::Stop;
+            }
+            glib::Propagation::Proceed
+        });
+        ui.window.add_controller(key);
         let reload = gio::SimpleAction::new("reload-interface", None);
         let weak = Rc::downgrade(&ui);
         reload.connect_activate(move |_, _| {
@@ -851,6 +949,13 @@ impl AppUi {
             self.rendered_revision.set(None);
             self.menu_button.set_menu_model(Some(&application_menu()));
         }
+        self.device_page.render(&snapshot);
+        self.pages
+            .page(&self.device_page.widget)
+            .set_title(&crate::i18n::tr("device-page"));
+        self.pages
+            .page(&self.split)
+            .set_title(&crate::i18n::tr("mixer"));
         let (matrix, sidebar) = (self.matrix.borrow(), self.sidebar.borrow());
         matrix.render(snapshot.clone());
         sidebar.render(snapshot.clone());
@@ -1134,6 +1239,7 @@ impl AppUi {
 
 fn application_menu() -> gio::Menu {
     let menu = gio::Menu::new();
+    menu.append(Some(&crate::i18n::tr("about")), Some("win.about"));
     menu.append(
         Some(&crate::i18n::translate("Settings")),
         Some("win.settings"),
@@ -1199,7 +1305,12 @@ mod tests {
             .collect();
         assert_eq!(
             actions,
-            ["win.settings", "win.reload-interface", "app.uninstall"]
+            [
+                "win.about",
+                "win.settings",
+                "win.reload-interface",
+                "app.uninstall"
+            ]
         );
     }
 

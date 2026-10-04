@@ -72,3 +72,18 @@ image.cadiswave-muted {
 .cadiswave-drop-group {
   box-shadow: inset 0 0 0 2px @accent_bg_color;
 }
+window.cadiswave { background: #0b0c0d; color: #f2f4f3; }
+window.cadiswave headerbar { background: #141617; border-bottom: 1px solid alpha(white,0.07); }
+.cadiswave-panel { background: #1c1e1f; border: 1px solid alpha(white,0.07); border-radius: 20px; padding: 18px; }
+.cadiswave-device { border-radius: 30px; background: linear-gradient(170deg,#202224,#0f1011); padding: 26px; }
+.cadiswave-accent { color: #7dff9b; }
+.cadiswave-reading { font-size: 28px; font-weight: 600; font-feature-settings: "tnum"; }
+.cadiswave-caption { color: #8b928f; font-size: 12px; letter-spacing: 0.5px; }
+.cadiswave-connection { color: #7dff9b; background: alpha(#7dff9b,0.08); border: 1px solid alpha(#7dff9b,0.2); border-radius: 18px; padding: 8px 16px; }
+.cadiswave-mute-button { background: alpha(#7dff9b,0.06); color: #7dff9b; border: 1px solid alpha(#7dff9b,0.12); padding: 12px; border-radius: 12px; }
+.cadiswave-mute-button.cadiswave-muted { color: #ff7b84; background: alpha(#ff7b84,0.08); }
+.cadiswave-pending { color: #ffd166; }
+window.cadiswave scale highlight { background: #7dff9b; }
+window.cadiswave scale slider { background: #f2f4f3; }
+
+.cadiswave-dial-value { font-size: 48px; font-weight: 700; font-feature-settings: "tnum"; }
