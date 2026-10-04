@@ -139,7 +139,8 @@ impl ConfigBuffer {
         let knob_mode = match self.bytes[p.off_vol_select] {
             2 => KnobMode::Headphones,
             3 if self.profile == ProfileId::Wave3 => KnobMode::MonitorMix,
-            _ => KnobMode::Gain,
+            0 | 1 => KnobMode::Gain,
+            _ => KnobMode::None,
         };
         DeviceState {
             gain_raw: read_u16(&self.bytes, p.off_gain),
@@ -309,7 +310,7 @@ pub fn gain_raw_to_db(profile: ProfileId, raw: u16) -> f64 {
 }
 
 pub fn fw_gain_to_alsa(profile: ProfileId, raw: u16) -> i32 {
-    (gain_raw_to_db(profile, raw) / 0.5).round_ties_even() as i32
+    (gain_raw_to_db(profile, raw.min(profile.profile().gain_max)) / 0.5).round_ties_even() as i32
 }
 
 pub fn fw_hp_to_alsa(profile: ProfileId, raw: i16) -> i32 {

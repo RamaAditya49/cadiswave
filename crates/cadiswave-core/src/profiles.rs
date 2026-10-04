@@ -148,14 +148,14 @@ const XLR: DeviceProfile = DeviceProfile {
     vid: 0x0fd9,
     pid: 0x007d,
     legacy: Some(XLR_LEGACY),
-    gain_max: 0x5000,
+    gain_max: 0x4b00,
     gain_scale: 256,
     hp_scale: 256,
     mix_max: 0,
     capture_serial_prefix: "Elgato_Systems_Elgato_Wave_XLR_",
     sync_alsa_mute: true,
     sync_alsa_hp: true,
-    sync_alsa_gain: false,
+    sync_alsa_gain: true,
 };
 
 pub static PROFILES: [DeviceProfile; 4] = [
@@ -164,6 +164,8 @@ pub static PROFILES: [DeviceProfile; 4] = [
         id: ProfileId::WaveXlrMk2,
         display_name: "Wave XLR MK.2 (0fd9:00a6)",
         pid: 0x00a6,
+        gain_max: 0x5000,
+        sync_alsa_gain: false,
         capture_serial_prefix: "Elgato_Systems_Elgato_XLR_Dock_",
         ..XLR
     },

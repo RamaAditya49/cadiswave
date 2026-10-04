@@ -1,4 +1,5 @@
 pub mod calibration;
+pub mod capabilities;
 pub mod effects;
 pub mod health;
 pub mod model;

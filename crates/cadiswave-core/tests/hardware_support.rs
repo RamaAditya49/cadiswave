@@ -82,3 +82,17 @@ fn persisted_profiles_keep_legacy_identifiers() {
     );
     assert!(serde_json::from_str::<ProfileId>(r#""wave_xlr_mk3""#).is_err());
 }
+
+#[test]
+fn original_wave_xlr_exposes_only_verified_controls() {
+    let capabilities = cadiswave_core::capabilities::for_profile(ProfileId::WaveXlr);
+    assert!(
+        !capabilities.clipguard
+            && !capabilities.hardware_low_cut
+            && !capabilities.led
+            && !capabilities.persistence
+            && !capabilities.monitor_mix
+    );
+    assert!(capabilities.phantom && capabilities.low_impedance);
+    assert!(cadiswave_core::capabilities::for_profile(ProfileId::Wave3).monitor_mix);
+}

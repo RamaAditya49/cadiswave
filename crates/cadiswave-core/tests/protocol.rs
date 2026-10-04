@@ -36,7 +36,7 @@ fn xlr_patches_preserve_every_reserved_byte_and_decode_signed_headphones() {
         block.apply(DeviceSetting::Phantom(true)).unwrap();
         block.apply(DeviceSetting::LowImpedance(false)).unwrap();
         let mut expected = original;
-        expected[0..2].copy_from_slice(&0x5000_u16.to_le_bytes());
+        expected[0..2].copy_from_slice(&profile.profile().gain_max.to_le_bytes());
         expected[4] = 0;
         expected[6] = 1;
         expected[9..11].copy_from_slice(&(-3264_i16).to_le_bytes());
@@ -47,7 +47,7 @@ fn xlr_patches_preserve_every_reserved_byte_and_decode_signed_headphones() {
             vec![(0, expected.as_slice())]
         );
         let state = block.state();
-        assert_eq!(state.gain_raw, 0x5000);
+        assert_eq!(state.gain_raw, profile.profile().gain_max);
         assert_eq!(state.hp_volume_db, -12.75);
         assert!(!state.muted);
         assert_eq!(state.phantom, Some(true));
@@ -132,7 +132,7 @@ fn observed_out_of_range_values_are_not_rewritten_or_clamped() {
 }
 
 #[test]
-fn knob_modes_follow_profile_specific_mapping_and_unknown_means_gain() {
+fn knob_modes_follow_verified_profile_mapping() {
     for (profile, length, offset) in [(ProfileId::WaveXlr, 34, 14), (ProfileId::Wave3, 16, 12)] {
         for (raw, expected) in [
             (0, KnobMode::Gain),
@@ -143,10 +143,10 @@ fn knob_modes_follow_profile_specific_mapping_and_unknown_means_gain() {
                 if profile == ProfileId::Wave3 {
                     KnobMode::MonitorMix
                 } else {
-                    KnobMode::Gain
+                    KnobMode::None
                 },
             ),
-            (255, KnobMode::Gain),
+            (255, KnobMode::None),
         ] {
             let mut bytes = vec![0; length];
             bytes[offset] = raw;
@@ -330,4 +330,43 @@ fn dock_bounds_rounding_and_nonfinite_rejection_preserve_observations() {
         block.apply(DeviceSetting::MonitorMix(value)).unwrap();
         assert_eq!(block.state().monitor_mix, Some(expected));
     }
+}
+
+#[test]
+fn original_wave_xlr_gain_limit_is_75_db() {
+    let mut config = ConfigBuffer::decode(ProfileId::WaveXlr, &[0; 34]).unwrap();
+    config.apply(DeviceSetting::GainRaw(u16::MAX)).unwrap();
+    assert_eq!(config.state().gain_raw, 0x4b00);
+    assert_eq!(ProfileId::WaveXlrMk2.profile().gain_max, 0x5000);
+}
+#[test]
+fn unmapped_original_wave_xlr_mode_does_not_become_gain() {
+    for mode in [3, 255] {
+        let mut bytes = [0; 34];
+        bytes[14] = mode;
+        assert_eq!(
+            ConfigBuffer::decode(ProfileId::WaveXlr, &bytes)
+                .unwrap()
+                .state()
+                .knob_mode,
+            KnobMode::None
+        );
+    }
+}
+#[test]
+fn original_gain_conversion_respects_the_alsa_range() {
+    for (raw, expected) in [
+        (0, 0),
+        (0x80, 1),
+        (0x100, 2),
+        (0x4b00, 150),
+        (u16::MAX, 150),
+    ] {
+        assert_eq!(
+            cadiswave_core::protocol::fw_gain_to_alsa(ProfileId::WaveXlr, raw),
+            expected
+        );
+    }
+    assert!(ProfileId::WaveXlr.profile().sync_alsa_gain);
+    assert!(!ProfileId::WaveXlrMk2.profile().sync_alsa_gain);
 }

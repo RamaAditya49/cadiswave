@@ -189,6 +189,36 @@ mod device {
     }
 
     #[test]
+    fn original_wave_xlr_physical_gain_is_mirrored_without_reserved_writes() {
+        let (mut alsa, shared) = alsa();
+        let mut mirror = Mirror::default();
+        let mut bytes = [0; 34];
+        bytes[28] = 0xa7;
+        let mut config = ConfigBuffer::decode(ProfileId::WaveXlr, &bytes).unwrap();
+        let now = Instant::now();
+        for (index, (raw, expected)) in [
+            (0, 0),
+            (0x80, 1),
+            (0x100, 2),
+            (0x4b00, 150),
+            (u16::MAX, 150),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            config.apply(DeviceSetting::GainRaw(raw)).unwrap();
+            let before = config.as_bytes().to_vec();
+            let (dirty, errors) =
+                mirror.observe(&mut config, &mut alsa, now + ALSA_POLL * index as u32);
+            assert!(!dirty);
+            assert!(errors.is_empty());
+            assert_eq!(fixture_lock(&shared).values[Field::Gain.index()], expected);
+            assert_eq!(config.as_bytes(), before);
+            assert_eq!(config.as_bytes()[28], 0xa7);
+        }
+    }
+
+    #[test]
     fn backend_batches_preserve_reserved_bytes_and_validate_before_read_write() {
         let (vendor, memory) = memory();
         let (alsa, _) = alsa();
