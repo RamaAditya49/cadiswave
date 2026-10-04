@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=OpenWave
 Comment=Elgato Wave Control for Linux
-Exec=openwave
+Exec=openwave --hide
 Icon=openwave
 Type=Application
 Categories=AudioVideo;Audio;Mixer;

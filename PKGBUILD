@@ -1,33 +1,27 @@
-# Maintainer: Rama Aditya
+# Maintainer: rikkichy
+# Use the prepared, vendored source archive from packaging/build-release.sh.
+# render-aur replaces only pkgver, source, sha256sums and _srcdir below.
 pkgname=openwave
-pkgver=0.1.7
+pkgver=$(cat "${startdir:-.}/VERSION")
 pkgrel=1
-pkgdesc="Linux control application for the Elgato Wave XLR"
-arch=('any')
-url="https://github.com/RamaAditya49/openwave"
+pkgdesc="Linux control application for Elgato Wave hardware and PipeWire mixing"
+arch=('x86_64')
+url="https://github.com/rikkichy/openwave"
 license=('MIT')
-depends=('python' 'python-gobject' 'gtk4' 'libadwaita' 'libusb' 'pipewire' 'wireplumber' 'alsa-utils')
-makedepends=('python-build' 'python-installer' 'python-wheel' 'python-setuptools')
-source=("$pkgname-$pkgver.tar.gz::https://github.com/RamaAditya49/openwave/archive/refs/tags/v$pkgver.tar.gz")
+depends=('gtk4>=4.14' 'libadwaita>=1.5' 'adwaita-icon-theme' 'libusb' 'pipewire' 'wireplumber' 'alsa-utils' 'libpulse' 'swh-plugins' 'polkit')
+makedepends=('make' 'pkgconf' 'rust>=1.98.1' 'clang')
+source=("openwave-$pkgver.tar.gz")
 sha256sums=('SKIP')
+_srcdir="openwave-$pkgver"
 
 build() {
-    cd "$srcdir/$pkgname-$pkgver"
-    python -m build --wheel --no-isolation
+    cd "$srcdir/$_srcdir"
+    export CARGO_NET_OFFLINE=true
+    make build CARGO_BUILD_FLAGS='--release --frozen --offline --workspace --bins'
 }
 
 package() {
-    cd "$srcdir/$pkgname-$pkgver"
-
-    # Install Python package
-    python -m installer --destdir="$pkgdir" dist/*.whl
-
-    # Desktop entry
-    install -Dm644 wavexlr.desktop "$pkgdir/usr/share/applications/$pkgname.desktop"
-
-    # License
-    install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-
-    # Docs
-    install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+    cd "$srcdir/$_srcdir"
+    make install DESTDIR="$pkgdir" PREFIX=/usr INSTALL_METHOD=arch \
+        CARGO_BUILD_FLAGS='--release --frozen --offline --workspace --bins'
 }

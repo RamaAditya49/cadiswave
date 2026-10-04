@@ -1,0 +1,81 @@
+name: Tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install native build and isolated smoke tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libadwaita-1-dev libusb-1.0-0-dev \
+            adwaita-icon-theme pipewire pipewire-bin pipewire-pulse wireplumber alsa-utils pulseaudio-utils \
+            swh-plugins bubblewrap apparmor at-spi2-core xvfb xauth dbus-x11 xdotool imagemagick jq rpm desktop-file-utils appstream
+      - name: Allow Bubblewrap to create the private test namespaces
+        run: |
+          # Ubuntu restricts unconfined user namespaces. Scope the exception to
+          # the sandbox executable, not a global kernel security switch.
+          if [[ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]] &&
+             [[ $(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns) == 1 ]]; then
+            sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+            sudo apparmor_parser -r /etc/apparmor.d/bwrap
+          fi
+          bwrap --version
+          bwrap --unshare-all --die-with-parent --cap-drop ALL \
+            --ro-bind /usr /usr --ro-bind /lib /lib --ro-bind /lib64 /lib64 \
+            --proc /proc --dev /dev /usr/bin/true
+      - name: Install exact official toolchain
+        run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Exercise native behavior
+        run: cargo test --locked --workspace
+      - name: Verify missing-file RPM ownership against a private database
+        run: cargo test --locked -p openwave-runtime --lib installation::package_query_tests::real_rpm_database_preserves_missing_file_ownership -- --ignored --exact
+      - name: Build actual installed application and smoke drivers
+        run: |
+          cargo build --release --locked --workspace --bins
+          cargo build --release --locked -p openwave-runtime --examples
+          cargo test --locked -p openwave-desktop --lib --no-run --message-format=json > "$RUNNER_TEMP/gtk-tests.jsonl"
+          make install DESTDIR="$RUNNER_TEMP/openwave-stage" PREFIX=/usr INSTALL_METHOD=manual
+      - name: Exercise installed app in isolated device-free audio and GTK session
+        run: |
+          gtk_tests=$(jq -er 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "openwave_desktop") | .executable' "$RUNNER_TEMP/gtk-tests.jsonl")
+          bash packaging/smoke-install.sh --stage "$RUNNER_TEMP/openwave-stage" \
+            --output-dir "$RUNNER_TEMP/smoke-evidence" \
+            --driver "$GITHUB_WORKSPACE/target/release/examples/smoke-control" \
+            --gtk-tests "$gtk_tests"
+      - name: Validate installed desktop and AppStream metadata
+        run: |
+          desktop-file-validate "$RUNNER_TEMP/openwave-stage/usr/share/applications/openwave.desktop"
+          appstreamcli validate --no-net "$RUNNER_TEMP/openwave-stage/usr/share/metainfo/com.github.openwave.metainfo.xml"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: smoke-${{ matrix.arch }}
+          path: |
+            ${{ runner.temp }}/smoke-evidence/
+            !${{ runner.temp }}/smoke-evidence/bin/**
+          if-no-files-found: warn
