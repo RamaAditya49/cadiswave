@@ -5,3 +5,9 @@ Upstream: https://github.com/rikkichy/openwave
 The MIT license retains the original copyright.
 CadisWave application artwork is maintained in icons/.
 Design reference files are excluded from this repository.
+
+Rama selected the Signal C application icon on 2026-10-04.
+The original selected PNG is icons/cadiswave.png.
+The self-contained SVG includes those exact PNG pixels for installed icon themes.
+Small status icons use the same C and waveform motif.
+White and black status icons support panel themes. Red indicates hardware mute.

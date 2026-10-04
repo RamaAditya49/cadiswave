@@ -3,6 +3,7 @@ Name=CadisWave
 Comment=Elgato Wave Control for Linux
 Exec=cadiswave
 Icon=cadiswave
+StartupWMClass=io.github.RamaAditya49.CadisWave
 Type=Application
 Categories=AudioVideo;Audio;Mixer;
 Terminal=false

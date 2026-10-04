@@ -1051,6 +1051,9 @@ impl AppUi {
         self.compact.render(&snapshot);
         let p = crate::ui::device::projection::DeviceProjection::from_snapshot(&snapshot);
         if let Some(notification) = self.connection_notifier.borrow_mut().observe(&p) {
+            if let Ok(path) = self.icons.supplied_path("cadiswave") {
+                notification.set_icon(&gio::FileIcon::new(&gio::File::for_path(path)));
+            }
             self.application
                 .send_notification(Some("cadiswave-device-connection"), &notification);
         }
@@ -1534,8 +1537,6 @@ mod tests {
         } else {
             data.join("data/style.css")
         };
-        gtk::IconTheme::for_display(&gtk::gdk::Display::default().unwrap())
-            .add_search_path(data.join("icons"));
         let provider = gtk::CssProvider::new();
         provider.load_from_path(css);
         gtk::style_context_add_provider_for_display(

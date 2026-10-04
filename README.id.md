@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="icons/cadiswave.svg" alt="CadisWave icon" width="96" height="96">
+  <img src="https://raw.githubusercontent.com/RamaAditya49/cadiswave/main/icons/cadiswave.png" alt="CadisWave icon" width="96" height="96">
 </p>
 <h1 align="center">CadisWave</h1>
 <p align="center"><strong>Kontrol Wave kamu di Linux.</strong></p>

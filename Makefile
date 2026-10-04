@@ -88,6 +88,10 @@ install: check-payload
 	install -Dm644 packaging/asset-attribution.txt "$(DOCDIR)/asset-attribution.txt"
 	install -Dm644 LICENSE "$(LICENSEDIR)/LICENSE"
 	"$(BINARY_DIR)/cadiswave-maintenance" record-install --prefix "$(PREFIX)" $(DESTDIR_ARGS) --method "$(INSTALL_METHOD)"
+	@if command -v gtk-update-icon-cache >/dev/null 2>&1; then \
+		gtk-update-icon-cache --force --ignore-theme-index "$(DATADIR)/icons/hicolor" || \
+		printf '%s\n' 'The desktop icon cache could not be refreshed.' >&2; \
+	fi
 
 # Explicit application-files-only removal; DESTDIR never addresses live services.
 uninstall:

@@ -15,8 +15,8 @@ The installed application uses the host runtime libraries.
 | --- | --- |
 | Cargo formatting | Passed |
 | Clippy, all workspace targets, warnings denied | Passed |
-| Workspace tests | 420 passed; 42 marked ignored |
-| Isolated GTK tests | All 25 display tests passed |
+| Workspace tests | 420 passed; 43 marked ignored |
+| Isolated GTK tests | All 26 display tests passed |
 | Release binaries and runtime examples | Built with the locked dependency set |
 | Installed application smoke | Passed with private audio, GTK, D-Bus, and device isolation |
 | Desktop entry and AppStream | Validated |
@@ -103,3 +103,34 @@ Other mapped models passed device-free checks but were not physically tested her
 
 The legacy Python source and configuration remain recoverable outside the active native source tree.
 See [migration](migration.md) for activation, processed capture mapping, and rollback instructions.
+
+## Selected application icon
+
+Rama selected the mint Signal C artwork on 2026-10-04.
+Both READMEs display the selected PNG.
+The installed SVG includes the exact selected PNG data.
+Its viewport removes empty outer padding.
+Small tray icons use the C and waveform motif in white, black, or mute red.
+
+The original installed GTK theme did not find `cadiswave` and returned `image-missing`.
+Production now registers its supplied artwork directory before creating windows.
+The regression failed before correction and passed afterward.
+The gallery no longer adds an independent icon-path workaround.
+All 26 GTK cases passed against the staged application assets.
+The installed About gallery displays the selected icon and Rama Aditya.
+
+A private notification service received the actual GTK connection notification.
+Its image path points to the supplied `cadiswave.svg`.
+Desktop entries identify the application with `StartupWMClass`.
+The installer refreshes the desktop icon cache when its tool is available.
+The live desktop theme now resolves the installed CadisWave artwork.
+
+Formatting, lint, all 420 workspace tests, release builds, metadata, and installed smoke passed.
+The 43 ignored workspace cases include the 26 separately executed GTK cases.
+The remaining 17 cases are not local passes.
+
+The tested release and artwork were installed in the user prefix.
+The native Wayland application was restarted and its About dialog opened.
+The capture daemon retained its process and invocation identities.
+Default input, mute, ALSA controls, source configuration, and source snapshots remained unchanged.
+The previous application payload remains backed up outside Git.

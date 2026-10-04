@@ -17,6 +17,17 @@ pub struct Icons {
 
 impl Icons {
     pub fn new(paths: RuntimePaths) -> Self {
+        if let Some(display) = gtk::gdk::Display::default() {
+            if let Ok(path) = paths.data_file("icons/cadiswave.svg")
+                && let Some(directory) = path.parent()
+            {
+                let theme = gtk::IconTheme::for_display(&display);
+                if !theme.search_path().iter().any(|path| path == directory) {
+                    theme.add_search_path(directory);
+                }
+            }
+            gtk::Window::set_default_icon_name("cadiswave");
+        }
         let supplied = [
             "cadiswave",
             "cadiswave-white",
@@ -114,5 +125,40 @@ impl Icons {
             .borrow_mut()
             .insert(name.to_owned(), chosen.clone());
         chosen
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gio::prelude::FileExt;
+
+    #[test]
+    #[ignore = "Requires the isolated GTK runner"]
+    fn supplied_artwork_resolves_without_a_global_icon_installation() {
+        gtk::init().unwrap();
+        let display = gtk::gdk::Display::default().unwrap();
+        let theme = gtk::IconTheme::for_display(&display);
+        theme.set_search_path(&[] as &[&std::path::Path]);
+        assert!(!theme.has_icon("cadiswave"));
+
+        let icons = Icons::new(crate::ui::test_support::asset_paths());
+        assert!(theme.has_icon("cadiswave"), "Supplied artwork is missing");
+        let icon = theme.lookup_icon(
+            "cadiswave",
+            &[],
+            128,
+            1,
+            gtk::TextDirection::None,
+            gtk::IconLookupFlags::empty(),
+        );
+        let file = icon.file().unwrap().path().unwrap();
+        let supplied = icons.supplied_path("cadiswave").unwrap();
+        assert_eq!(file.parent(), supplied.parent());
+        assert_eq!(file.file_stem().unwrap(), "cadiswave");
+        assert_eq!(
+            gtk::Window::default_icon_name().as_deref(),
+            Some("cadiswave")
+        );
     }
 }
