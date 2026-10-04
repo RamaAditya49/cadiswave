@@ -1,5 +1,11 @@
+mod mailbox;
 use crate::process::OwnedChild;
-use cadiswave_core::model::{NodeIdentity, OperationError, Result};
+use cadiswave_core::{
+    model::{NodeIdentity, OperationError, Result},
+    pcm::{ChannelPeaks, PcmPeakDecoder},
+};
+pub use mailbox::MeterEvents;
+use mailbox::MeterSender;
 use std::{
     collections::{HashMap, HashSet},
     io::Read,
@@ -27,6 +33,7 @@ pub struct MeterEvent {
     pub identity: NodeIdentity,
     pub generation: u64,
     pub peak: f64,
+    pub channels: ChannelPeaks,
 }
 
 #[derive(Default)]
@@ -230,23 +237,23 @@ pub struct MeterMonitor {
     stop_error: Option<OperationError>,
 }
 impl MeterMonitor {
-    pub fn start() -> Result<(Self, mpsc::Receiver<MeterEvent>)> {
+    pub fn start() -> Result<(Self, MeterEvents)> {
         Self::start_with_spawner(ReaderSpawner::default())
     }
     #[cfg(test)]
     pub(crate) fn start_with_reader(
         spawn: impl Fn(&[String]) -> Result<OwnedChild> + Send + Sync + 'static,
-    ) -> Result<(Self, mpsc::Receiver<MeterEvent>)> {
+    ) -> Result<(Self, MeterEvents)> {
         Self::start_with_spawner(ReaderSpawner {
             fixture: Some(Arc::new(spawn)),
         })
     }
-    fn start_with_spawner(spawner: ReaderSpawner) -> Result<(Self, mpsc::Receiver<MeterEvent>)> {
+    fn start_with_spawner(spawner: ReaderSpawner) -> Result<(Self, MeterEvents)> {
         let targets = Arc::new(Mutex::new(Targets::new()));
         let cancel = Arc::new(AtomicBool::new(false));
         let readiness = CaptureReadiness::default();
         let (wake, commands) = mpsc::channel();
-        let (events, receiver) = mpsc::channel();
+        let (events, receiver) = mailbox::channel();
         let (worker_targets, worker_cancel) = (targets.clone(), cancel.clone());
         let join = thread::Builder::new()
             .name("cadiswave-meters".into())
@@ -328,7 +335,8 @@ impl MeterMonitor {
                 targets.get(&event.key).is_some_and(|(target, token, tap)| {
                     target.identity == event.identity
                         && *token == event.generation
-                        && (tap.registered() || event.peak == 0.0)
+                        && (tap.registered()
+                            || (event.peak == 0.0 && event.channels.maximum() == 0.0))
                 })
             })
     }
@@ -379,7 +387,7 @@ fn meter_loop(
     targets: Arc<Mutex<Targets>>,
     cancel: Arc<AtomicBool>,
     commands: mpsc::Receiver<()>,
-    events: mpsc::Sender<MeterEvent>,
+    events: MeterSender,
     spawner: ReaderSpawner,
 ) -> Result<()> {
     let mut workers: HashMap<String, Worker> = HashMap::new();
@@ -472,7 +480,7 @@ fn meter_reader(
     targets: Arc<Mutex<Targets>>,
     cancel: Arc<AtomicBool>,
     tap: Arc<CaptureTap>,
-    events: mpsc::Sender<MeterEvent>,
+    events: MeterSender,
     spawner: ReaderSpawner,
 ) -> Result<()> {
     let props = serde_json::json!({"node.name": format!("cadiswave_meter_{}", target.key), "node.description": format!("CadisWave level meter ({})", target.key), "application.name":"CadisWave", "media.name":format!("CadisWave meter: {}", target.key), "node.dont-fallback":true, "node.dont-reconnect":true, "node.dont-move":true, "stream.capture.sink": !target.raw});
@@ -485,9 +493,7 @@ fn meter_reader(
         "--rate".into(),
         "8000".into(),
         "--channels".into(),
-        // Match the Python meter: let PipeWire downmix before s16 decoding.
-        // Calibration deliberately keeps its independent channel capture.
-        "1".into(),
+        target.channels.to_string(),
         "--format".into(),
         "s16".into(),
         "-".into(),
@@ -506,7 +512,7 @@ fn meter_reader(
                 .ok_or_else(|| OperationError::unavailable("meter stdout unavailable"))?;
             nonblocking(&stdout)?;
             let mut buffer = [0u8; 1024];
-            let mut decoder = PcmPeak::default();
+            let mut decoder = PcmPeakDecoder::new(target.channels)?;
             let mut tail = 0;
             let mut settled = false;
             while !cancel.load(Ordering::Acquire) {
@@ -525,8 +531,9 @@ fn meter_reader(
                         if target.raw {
                             tap.received(Instant::now())?;
                         }
-                        if let Some(mut peak) = decoder.push(&buffer[..size]) {
-                            if peak >= 0.004 {
+                        if let Some(mut channels) = decoder.push(&buffer[..size]) {
+                            let mut peak = decoder.scalar_peak();
+                            if channels.maximum() >= 0.004 {
                                 tail = 20;
                                 settled = false;
                             } else if tail > 0 {
@@ -535,6 +542,7 @@ fn meter_reader(
                                 continue;
                             } else {
                                 peak = 0.0;
+                                channels = ChannelPeaks::zero(target.channels);
                                 settled = true;
                             }
                             let _ = events.send(MeterEvent {
@@ -542,6 +550,7 @@ fn meter_reader(
                                 identity: target.identity.clone(),
                                 generation: token,
                                 peak,
+                                channels,
                             });
                         }
                     }
@@ -580,6 +589,7 @@ fn meter_reader(
             identity: target.identity,
             generation: token,
             peak: 0.0,
+            channels: ChannelPeaks::zero(target.channels),
         });
     }
     result
@@ -609,7 +619,7 @@ mod lifecycle {
 
     struct Rig {
         monitor: MeterMonitor,
-        events: mpsc::Receiver<MeterEvent>,
+        events: MeterEvents,
         spawned: mpsc::Receiver<Spawned>,
         release: Arc<AtomicBool>,
         _directory: tempfile::TempDir,

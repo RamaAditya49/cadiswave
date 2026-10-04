@@ -801,6 +801,7 @@ fn stale_graph_cannot_restart_a_meter_for_a_previous_capture_binding() {
             identity: a.identity.clone(),
             generation: 1,
             peak: 0.5,
+            channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.5),
         }))
         .unwrap();
     f.barrier("first-peak");
@@ -820,6 +821,7 @@ fn stale_graph_cannot_restart_a_meter_for_a_previous_capture_binding() {
             identity: a.identity.clone(),
             generation: 1,
             peak: 0.9,
+            channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.9),
         }))
         .unwrap();
     f.barrier("stale-meter");

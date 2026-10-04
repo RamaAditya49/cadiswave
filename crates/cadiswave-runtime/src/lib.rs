@@ -4,6 +4,7 @@ pub mod controller;
 pub mod desktop;
 pub mod device;
 pub mod diag;
+pub mod events;
 pub mod health;
 pub mod installation;
 pub mod meter;

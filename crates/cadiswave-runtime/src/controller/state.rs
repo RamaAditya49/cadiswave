@@ -90,6 +90,7 @@ struct Controller {
     observed_mixes: IndexMap<MixId, NodeIdentity>,
     routing_revision: u64,
     meters: IndexMap<String, f64>,
+    channel_meters: IndexMap<String, cadiswave_core::pcm::ChannelPeaks>,
     errors: Vec<OperationIssue>,
     errors_dirty: bool,
     calibration: Option<calibration::CalibrationSession>,
@@ -221,6 +222,7 @@ impl Controller {
             observed_mixes: IndexMap::new(),
             routing_revision: 0,
             meters: IndexMap::new(),
+            channel_meters: IndexMap::new(),
             errors,
             errors_dirty: true,
             calibration: None,
@@ -296,6 +298,7 @@ impl Controller {
         }
         if self.meters_dirty {
             self.view.meters = Arc::new(self.meters.clone());
+            self.view.channel_meters = Arc::new(self.channel_meters.clone());
             self.meters_dirty = false;
         }
         if self.errors_dirty {
@@ -412,6 +415,8 @@ impl Controller {
             .map(|target| (target.key.clone(), target.identity.clone()))
             .collect();
         self.meters
+            .retain(|key, _| self.meter_targets.contains_key(key));
+        self.channel_meters
             .retain(|key, _| self.meter_targets.contains_key(key));
         self.meters_dirty = true;
         self.dirty = true;
@@ -1008,9 +1013,12 @@ impl Controller {
             }
             BackendEvent::Meter(event) => {
                 if event.peak.is_finite()
+                    && event.channels.is_valid()
                     && self.meter_targets.get(&event.key) == Some(&event.identity)
                     && (event.key.starts_with("src:") || event.key.starts_with("mix:"))
                 {
+                    self.channel_meters
+                        .insert(event.key.clone(), event.channels);
                     self.meters.insert(event.key, event.peak);
                     self.meters_dirty = true;
                     self.dirty = true;
