@@ -238,6 +238,16 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn malformed_language_preferences_remain_read_only_and_unchanged() {
+        let root = tempfile::tempdir().unwrap();
+        let path = root.path().join("ui-state.json");
+        let bytes = br#"{"language":"invalid","keep":true}"#;
+        fs::write(&path, bytes).unwrap();
+        let mut store = ConfigStore::load(root.path());
+        assert!(store.preferences.replace(Preferences::default()).is_err());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+    }
+    #[test]
     fn legacy_store_edits_preserve_volume_coordinates_bindings_and_extensions() {
         let root = tempfile::tempdir().unwrap();
         let inputs = [

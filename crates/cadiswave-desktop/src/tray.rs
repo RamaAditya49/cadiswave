@@ -170,25 +170,28 @@ impl Presentation {
                 None => "Status unavailable",
             };
             (
-                format!("Selected {name}: {detail}"),
-                format!(
-                    "{} {name}",
+                crate::i18n::format(
+                    "selected-device-detail",
+                    &[("name", &name), ("detail", &crate::i18n::translate(detail))],
+                ),
+                crate::i18n::format(
                     if muted == Some(true) {
-                        "Unmute"
+                        "unmute-device"
                     } else {
-                        "Mute"
-                    }
+                        "mute-device"
+                    },
+                    &[("name", &name)],
                 ),
                 muted.is_some(),
             )
         } else {
             (
                 if snapshot.units.is_empty() {
-                    "No device connected".into()
+                    crate::i18n::translate("No device connected")
                 } else {
-                    "No device selected".into()
+                    crate::i18n::translate("No device selected")
                 },
-                "Mute Mic (no device selected)".into(),
+                crate::i18n::translate("Mute Mic (no device selected)"),
                 false,
             )
         };
@@ -644,7 +647,7 @@ impl Inner {
         let state = self.state.borrow();
         let item = |label: &str, enabled: bool, icon: &str| -> Properties {
             [
-                ("label".into(), label.to_variant()),
+                ("label".into(), crate::i18n::translate(label).to_variant()),
                 ("visible".into(), true.to_variant()),
                 ("enabled".into(), enabled.to_variant()),
                 ("icon-name".into(), icon.to_variant()),

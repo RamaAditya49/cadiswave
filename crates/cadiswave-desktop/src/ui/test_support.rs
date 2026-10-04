@@ -62,6 +62,7 @@ struct FixtureState {
     fail_shutdown_once: bool,
     device_command_count: usize,
     fail_device_once: bool,
+    routing_command_count: usize,
 }
 
 // Preserve poisoned state for diagnostics and shutdown rather than unwrap it.
@@ -98,6 +99,7 @@ impl Backend for FixtureBackend {
             BackendCommand::Routing {
                 desired, bindings, ..
             } => {
+                fixture_state(&self.state).routing_command_count += 1;
                 let fixture_sources = desired.sources.is_empty()
                     || (desired.sources.len() == 1
                         && desired.sources.values().all(|source| {
@@ -397,6 +399,9 @@ impl Rig {
     }
     pub(crate) fn submitted_targets(&self) -> Vec<UnitId> {
         self.targets.borrow().clone()
+    }
+    pub(crate) fn routing_command_count(&self) -> usize {
+        fixture_state(&self.state).routing_command_count
     }
     pub(crate) fn fail_next_device_command(&self) {
         fixture_state(&self.state).fail_device_once = true;

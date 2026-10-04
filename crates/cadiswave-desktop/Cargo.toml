@@ -19,3 +19,6 @@ async-channel.workspace = true
 clap.workspace = true
 log.workspace = true
 env_logger.workspace = true
+fluent-bundle.workspace = true
+fluent-syntax.workspace = true
+unic-langid.workspace = true

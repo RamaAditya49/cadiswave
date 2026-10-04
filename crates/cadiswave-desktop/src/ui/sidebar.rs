@@ -37,6 +37,7 @@ pub struct Sidebar {
     autostart: adw::SwitchRow,
     hidden_autostart: adw::SwitchRow,
     tray_color: adw::ComboRow,
+    language: adw::ComboRow,
     info: adw::ExpanderRow,
     firmware: gtk::Label,
     api: gtk::Label,
@@ -231,6 +232,37 @@ impl Sidebar {
             .model(&colors)
             .build();
         settings.add(&tray_color);
+        let language = adw::ComboRow::builder()
+            .model(&gtk::StringList::new(&[
+                "System language",
+                "English",
+                "Bahasa Indonesia",
+            ]))
+            .build();
+        crate::i18n::bind(&language, "title", "language");
+        settings.add(&language);
+        {
+            let interaction = interaction.clone();
+            let submit = submit.clone();
+            language.connect_selected_notify(move |row| {
+                if !interaction.accepting() {
+                    return;
+                }
+                let language = match row.selected() {
+                    1 => cadiswave_core::locale::LanguageChoice::English,
+                    2 => cadiswave_core::locale::LanguageChoice::Indonesian,
+                    _ => cadiswave_core::locale::LanguageChoice::System,
+                };
+                if language != interaction.snapshot.borrow().preferences.language {
+                    submit(AppCommand::SetPreferences {
+                        changes: PreferencesEdit {
+                            language: Some(language),
+                            ..Default::default()
+                        },
+                    });
+                }
+            });
+        }
 
         let info_group = adw::PreferencesGroup::new();
         content.append(&info_group);
@@ -390,6 +422,7 @@ impl Sidebar {
             autostart,
             hidden_autostart,
             tray_color,
+            language,
             info,
             firmware,
             api,
@@ -495,6 +528,13 @@ impl Sidebar {
         self.hidden_autostart.set_active(snapshot.hidden_autostart);
         self.hidden_autostart
             .set_sensitive(accepting && snapshot.autostart);
+        self.language.set_sensitive(accepting);
+        self.language
+            .set_selected(match snapshot.preferences.language {
+                cadiswave_core::locale::LanguageChoice::System => 0,
+                cadiswave_core::locale::LanguageChoice::English => 1,
+                cadiswave_core::locale::LanguageChoice::Indonesian => 2,
+            });
         self.tray_color.set_sensitive(accepting);
         // Artwork availability must never select or persist a different preference.
         self.tray_color

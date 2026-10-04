@@ -594,6 +594,8 @@ pub fn default_mixes() -> Mixes {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Preferences {
+    #[serde(default)]
+    pub language: crate::locale::LanguageChoice,
     pub width: i32,
     pub height: i32,
     pub maximized: bool,
@@ -606,6 +608,7 @@ pub struct Preferences {
 impl Default for Preferences {
     fn default() -> Self {
         Self {
+            language: crate::locale::LanguageChoice::System,
             width: 1280,
             height: 720,
             maximized: false,
@@ -633,6 +636,9 @@ impl Preferences {
                     .max(minimum);
             }
         }
+        if let Some(language) = map.remove("language") {
+            prefs.language = serde_json::from_value(language)?;
+        }
         prefs.maximized = take_bool(&mut map, "maximized", false)?;
         prefs.gain_locked = take_bool(&mut map, "gain_locked", false)?;
         prefs.tray_icon_color = take_string(&mut map, "tray_icon_color", "white")?;
@@ -650,6 +656,7 @@ impl Preferences {
 }
 #[derive(Debug, Clone, Default)]
 pub struct PreferencesEdit {
+    pub language: Option<crate::locale::LanguageChoice>,
     pub width: Option<i32>,
     pub height: Option<i32>,
     pub maximized: Option<bool>,

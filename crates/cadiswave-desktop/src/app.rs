@@ -127,6 +127,7 @@ pub fn run(args: Vec<String>) -> i32 {
 struct AppUi {
     application: adw::Application,
     paths: RuntimePaths,
+    i18n: Rc<RefCell<crate::i18n::I18n>>,
     handle: RuntimeHandle,
     window: adw::ApplicationWindow,
     icons: Rc<Icons>,
@@ -137,6 +138,7 @@ struct AppUi {
     warning: gtk::MenuButton,
     warning_text: gtk::Label,
     scene_button: gtk::MenuButton,
+    menu_button: gtk::MenuButton,
     status: gtk::Label,
     submit: Submit,
     registry: RefCell<Option<ActionRegistry>>,
@@ -180,6 +182,11 @@ impl AppUi {
         }
         let icons = Rc::new(Icons::new(paths.clone()));
         let snapshot = handle.snapshot();
+        let i18n = Rc::new(RefCell::new(
+            crate::i18n::I18n::new(snapshot.preferences.language, &crate::i18n::system_locale())
+                .expect("validated embedded Fluent catalogs"),
+        ));
+        crate::i18n::activate(i18n.clone());
         let ui = Rc::new_cyclic(|weak: &std::rc::Weak<Self>| {
             let target = weak.clone();
             let submit: Submit = Rc::new(move |command| {
@@ -249,6 +256,8 @@ impl AppUi {
                 .margin_end(12)
                 .build();
             status.add_css_class("dim-label");
+            crate::i18n::protect(&warning_text);
+            crate::i18n::protect(&status);
             content.append(&status);
             let split = adw::OverlaySplitView::builder()
                 .sidebar_position(gtk::PackType::End)
@@ -277,6 +286,7 @@ impl AppUi {
             Self {
                 application: application.clone(),
                 paths: paths.clone(),
+                i18n: i18n.clone(),
                 handle: handle.clone(),
                 window,
                 icons: icons.clone(),
@@ -287,6 +297,7 @@ impl AppUi {
                 warning,
                 warning_text,
                 scene_button,
+                menu_button,
                 status,
                 submit,
                 registry: RefCell::new(None),
@@ -827,6 +838,19 @@ impl AppUi {
     }
     fn render_widgets(&self) {
         let snapshot = self.latest.borrow().clone();
+        let locale = crate::i18n::system_locale();
+        if self.i18n.borrow().locale() != snapshot.preferences.language.resolve(&locale) {
+            if let Err(error) = self
+                .i18n
+                .borrow_mut()
+                .set_choice(snapshot.preferences.language, &locale)
+            {
+                log::error!("{error}");
+            }
+            crate::i18n::retranslate();
+            self.rendered_revision.set(None);
+            self.menu_button.set_menu_model(Some(&application_menu()));
+        }
         let (matrix, sidebar) = (self.matrix.borrow(), self.sidebar.borrow());
         matrix.render(snapshot.clone());
         sidebar.render(snapshot.clone());
@@ -840,12 +864,15 @@ impl AppUi {
             .map(|unit| {
                 let name = unit.id.profile.profile().display_name;
                 if snapshot.units.len() > 1 {
-                    format!("{name} · {} connected devices", snapshot.units.len())
+                    crate::i18n::format(
+                        "connected-count",
+                        &[("name", name), ("count", &snapshot.units.len().to_string())],
+                    )
                 } else {
-                    format!("{name} · Connected")
+                    format!("{name} · {}", crate::i18n::tr("device-connected"))
                 }
             })
-            .unwrap_or_else(|| "Disconnected".to_string());
+            .unwrap_or_else(|| crate::i18n::tr("device-disconnected"));
         if self.title.subtitle() != subtitle {
             self.title.set_subtitle(&subtitle);
         }
@@ -883,16 +910,23 @@ impl AppUi {
                 menu.append_section(None, &recall);
             }
             let manage = gio::Menu::new();
-            manage.append(Some("Save current as…"), Some("win.save-scene-as"));
+            manage.append(
+                Some(&crate::i18n::translate("Save current as…")),
+                Some("win.save-scene-as"),
+            );
             if delete.n_items() > 0 {
-                manage.append_submenu(Some("Delete scene"), &delete);
+                manage.append_submenu(Some(&crate::i18n::translate("Delete scene")), &delete);
             }
             menu.append_section(None, &manage);
             self.scene_button.set_menu_model(Some(&menu));
         }
+        crate::i18n::bind_tree(&self.window);
+        if let Some(tray) = self.tray.borrow().as_ref() {
+            tray.update(&snapshot);
+        }
     }
     fn set_status(&self, text: &str) {
-        self.status.set_label(text);
+        self.status.set_label(&crate::i18n::translate(text));
         self.status.set_visible(!text.is_empty());
     }
     fn error(&self, heading: &str, message: &str) {
@@ -1100,9 +1134,18 @@ impl AppUi {
 
 fn application_menu() -> gio::Menu {
     let menu = gio::Menu::new();
-    menu.append(Some("Settings"), Some("win.settings"));
-    menu.append(Some("Reload interface"), Some("win.reload-interface"));
-    menu.append(Some("Uninstall CadisWave…"), Some("app.uninstall"));
+    menu.append(
+        Some(&crate::i18n::translate("Settings")),
+        Some("win.settings"),
+    );
+    menu.append(
+        Some(&crate::i18n::translate("Reload interface")),
+        Some("win.reload-interface"),
+    );
+    menu.append(
+        Some(&crate::i18n::translate("Uninstall CadisWave…")),
+        Some("app.uninstall"),
+    );
     menu
 }
 

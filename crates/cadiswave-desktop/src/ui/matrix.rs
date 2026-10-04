@@ -353,9 +353,11 @@ impl MatrixState {
         text.set_hexpand(true);
         inner.append(&text);
         let group = label("", 0, "cadiswave-group-badge");
+        crate::i18n::protect(&group);
         group.set_max_width_chars(10);
         text.append(&group);
         let title = label(&source.name, 10, "heading");
+        crate::i18n::protect(&title);
         text.append(&title);
         let status = label("", 0, "dim-label");
         status.set_max_width_chars(10);
@@ -390,7 +392,7 @@ impl MatrixState {
         content.append(&controls);
         let fader = Fader::new(
             source.kind == SourceKind::Device,
-            &format!("{} source trim", source.name),
+            &crate::i18n::format("source-trim", &[("name", &source.name)]),
         );
         fader.scale.set_size_request(110, -1);
         fader
@@ -539,14 +541,20 @@ impl MatrixState {
         text.set_hexpand(true);
         inner.append(&text);
         let title = label(&mix.name, 14, "heading");
+        crate::i18n::protect(&title);
         text.append(&title);
         let subtitle = label(&mix.subtitle, 16, "caption");
+        crate::i18n::protect(&subtitle);
         subtitle.add_css_class("dim-label");
         text.append(&subtitle);
         let output = label("", 16, "caption");
+        crate::i18n::protect(&output);
         output.add_css_class("dim-label");
         text.append(&output);
-        let fader = Fader::new(false, &format!("{} master volume", mix.name));
+        let fader = Fader::new(
+            false,
+            &crate::i18n::format("master-volume", &[("name", &mix.name)]),
+        );
         fader.scale.set_size_request(110, -1);
         fader
             .scale
@@ -709,7 +717,7 @@ impl MatrixState {
             if let Some(source) = snapshot.desired.sources.get(id) {
                 row.title.set_label(&source.name);
                 row.title.set_tooltip_text(Some(&source.name));
-                let trim_label = format!("{} source trim", source.name);
+                let trim_label = crate::i18n::format("source-trim", &[("name", &source.name)]);
                 row.fader.scale.set_tooltip_text(Some(&trim_label));
                 row.fader
                     .scale
@@ -786,7 +794,7 @@ impl MatrixState {
                 // An empty subtitle still holds its line, so every header's
                 // fader and meter sit at the same height across the row.
                 header.subtitle.set_label(&mix.subtitle);
-                let master_label = format!("{} master volume", mix.name);
+                let master_label = crate::i18n::format("master-volume", &[("name", &mix.name)]);
                 header.fader.scale.set_tooltip_text(Some(&master_label));
                 header
                     .fader
@@ -857,7 +865,7 @@ impl MatrixState {
                 let auto = if current == "auto" {
                     match &resolved {
                         Ok(OutputDecision::Monitor(output)) => {
-                            format!("Automatic — {}", output.name)
+                            crate::i18n::format("automatic-output", &[("name", &output.name)])
                         }
                         _ => "Automatic".into(),
                     }

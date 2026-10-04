@@ -101,8 +101,11 @@ pub fn show_error(parent: &gtk::Window, heading: &str, message: &str) {
         .heading(heading)
         .body(message)
         .build();
-    dialog.add_response("ok", "OK");
+    crate::i18n::protect(&dialog);
+    crate::i18n::bind_english(&dialog, "heading", heading);
+    dialog.add_response("ok", &crate::i18n::translate("OK"));
     dialog.set_close_response("ok");
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 fn confirm(
@@ -127,6 +130,7 @@ fn confirm(
             submit(command.clone());
         }
     });
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 pub fn remove_source(
@@ -161,9 +165,12 @@ pub fn remove_source(
     confirm(
         parent,
         "Remove source?",
-        &format!(
-            "This deletes “{}” and its mix levels. {consequence}",
-            source.name
+        &crate::i18n::format(
+            "remove-source-confirm",
+            &[
+                ("name", &source.name),
+                ("consequence", &crate::i18n::translate(consequence)),
+            ],
         ),
         "Remove",
         AppCommand::RemoveSource { source: id.clone() },
@@ -185,9 +192,9 @@ pub fn remove_mix(parent: &gtk::Window, id: &MixId, snapshot: Arc<AppSnapshot>, 
     confirm(
         parent,
         "Delete mix?",
-        &format!(
-            "“{}” and its levels for every source are deleted, and the “{}” audio device disappears. Anything recording or listening to it — OBS, Discord — loses that input until it is pointed somewhere else.",
-            mix.name, mix.description
+        &crate::i18n::format(
+            "delete-mix-confirm",
+            &[("name", &mix.name), ("device", &mix.description)],
         ),
         "Delete",
         AppCommand::RemoveMix { mix: id.clone() },
@@ -274,6 +281,7 @@ fn mix_dialog(parent: &gtk::Window, mix: Option<Mix>, icons: Rc<Icons>, submit: 
     });
     save.connect_clicked(move |_| commit());
     nav.push(&page);
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 
@@ -300,6 +308,7 @@ pub fn save_scene(parent: &gtk::Window, submit: Submit) {
             }
         }
     });
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 
@@ -357,6 +366,7 @@ pub fn add_source(
         list.append(&row);
     }
     nav.push(&page);
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 pub fn edit_source(
@@ -371,6 +381,7 @@ pub fn edit_source(
     };
     let (dialog, nav) = navigation_dialog("Edit Source", 480, 560);
     source_config(&dialog, &nav, source, true, snapshot, icons, submit);
+    crate::i18n::bind_tree(&dialog);
     dialog.present(Some(parent));
 }
 fn source_picker(
@@ -408,6 +419,7 @@ fn source_picker(
                 .title(&capture.name)
                 .subtitle(&capture.node_name)
                 .build();
+            crate::i18n::protect(&row);
             row.add_prefix(&icons.image("audio-input-microphone-symbolic", 24));
             list.append(&row);
             let mut source = Source::new(capture.name.clone(), kind);
@@ -431,6 +443,8 @@ fn source_picker(
             .collect();
         for name in names {
             let row = adw::ActionRow::builder().title(name).build();
+            crate::i18n::protect(&row);
+            crate::i18n::protect(&row);
             row.add_prefix(&icons.image("applications-multimedia-symbolic", 24));
             list.append(&row);
             let mut source = Source::new(name.into(), kind);
@@ -515,10 +529,11 @@ impl Bindings {
         }
         for name in self.names.borrow().iter() {
             let row = adw::ActionRow::builder().title(name).build();
+            crate::i18n::protect(&row);
             let remove = gtk::Button::builder()
                 .icon_name("window-close-symbolic")
                 .valign(gtk::Align::Center)
-                .tooltip_text(format!("Stop matching {name}"))
+                .tooltip_text(crate::i18n::format("stop-matching", &[("name", name)]))
                 .build();
             remove.add_css_class("flat");
             let name = name.clone();

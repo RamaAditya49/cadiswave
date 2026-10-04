@@ -385,6 +385,9 @@ impl Controller {
             }
             AppCommand::SetPreferences { changes } => {
                 let mut preferences = self.store.preferences.value().clone();
+                if let Some(language) = changes.language {
+                    preferences.language = language;
+                }
                 if let Some(width) = changes.width {
                     preferences.width = width.max(820);
                 }

@@ -33,3 +33,7 @@ log = "=0.4.34"
 env_logger = "=0.11.11"
 signal-hook = "=0.4.4"
 toml = "=1.1.5"
+
+fluent-bundle = "=0.16.0"
+fluent-syntax = "=0.12.0"
+unic-langid = "=0.9.6"
