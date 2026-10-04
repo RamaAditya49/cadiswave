@@ -131,6 +131,7 @@ mod tests {
             generation,
             peak: 0.5,
             channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.5),
+            available: true,
         }
     }
     #[test]

@@ -91,3 +91,49 @@ fn unavailable_settings_do_not_submit_hardware_commands() {
     assert_eq!(rig.device_command_count(), 0);
     assert_eq!(rig.routing_command_count(), routes_before);
 }
+#[test]
+fn repeated_connections_do_not_repeat_notifications() {
+    let rig = crate::ui::test_support::Rig::new(
+        serde_json::json!({}),
+        vec![crate::ui::test_support::unit("A", 2, -10.0)],
+    );
+    let p = projection::DeviceProjection::from_snapshot(&rig.snapshot());
+    let mut notifier = compact::ConnectionNotifier::default();
+    assert!(notifier.observe(&p).is_some());
+    assert!(notifier.observe(&p).is_none());
+    let missing =
+        projection::DeviceProjection::from_snapshot(&cadiswave_core::model::AppSnapshot::default());
+    assert!(notifier.observe(&missing).is_some());
+    assert!(notifier.observe(&missing).is_none());
+}
+#[test]
+#[ignore = "Requires the isolated GTK runner"]
+fn opening_compact_controls_and_switching_language_keeps_runtime_state() {
+    use adw::prelude::*;
+    adw::init().unwrap();
+    let rig = crate::ui::test_support::Rig::new(
+        serde_json::json!({}),
+        vec![crate::ui::test_support::unit("A", 2, -10.0)],
+    );
+    let locale = std::rc::Rc::new(std::cell::RefCell::new(
+        crate::i18n::I18n::new(cadiswave_core::locale::LanguageChoice::English, "en").unwrap(),
+    ));
+    let before = rig.device_states();
+    let routes = rig.routing_command_count();
+    let compact =
+        compact::CompactControls::new(controls::DeviceControls::new(rig.handle()), locale.clone());
+    compact.render(&rig.snapshot());
+    let window = adw::Window::new();
+    window.set_content(Some(&compact.widget));
+    window.present();
+    locale
+        .borrow_mut()
+        .set_choice(cadiswave_core::locale::LanguageChoice::Indonesian, "en")
+        .unwrap();
+    compact.retranslate();
+    compact.render(&rig.snapshot());
+    assert_eq!(before, rig.device_states());
+    assert_eq!(routes, rig.routing_command_count());
+    assert_eq!(rig.device_command_count(), 0);
+    window.close();
+}

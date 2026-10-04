@@ -802,10 +802,24 @@ fn stale_graph_cannot_restart_a_meter_for_a_previous_capture_binding() {
             generation: 1,
             peak: 0.5,
             channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.5),
+            available: true,
         }))
         .unwrap();
     f.barrier("first-peak");
     assert_eq!(f.handle.snapshot().meters["src:mic"], 0.5);
+    assert!(f.handle.snapshot().channel_meters.contains_key("src:mic"));
+    f.incoming
+        .send(BackendEvent::Meter(MeterEvent {
+            key: "src:mic".into(),
+            identity: a.identity.clone(),
+            generation: 1,
+            peak: 0.0,
+            channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.0),
+            available: false,
+        }))
+        .unwrap();
+    f.barrier("meter-eof");
+    assert!(!f.handle.snapshot().channel_meters.contains_key("src:mic"));
     f.apply(AppCommand::EditSource {
         source: sid("mic"),
         changes: SourceEdit {
@@ -822,6 +836,7 @@ fn stale_graph_cannot_restart_a_meter_for_a_previous_capture_binding() {
             generation: 1,
             peak: 0.9,
             channels: cadiswave_core::pcm::ChannelPeaks::Mono(0.9),
+            available: true,
         }))
         .unwrap();
     f.barrier("stale-meter");

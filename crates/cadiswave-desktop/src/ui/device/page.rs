@@ -338,13 +338,9 @@ impl DevicePage {
                 .unwrap_or_else(|| crate::i18n::tr("unknown-reading")),
         );
         self.service
-            .set_text(&crate::i18n::tr(if snapshot.service_status == "active" {
-                "service-running"
-            } else if snapshot.service_status == "inactive" {
-                "service-stopped"
-            } else {
-                "service-unavailable"
-            }));
+            .set_text(&crate::i18n::tr(super::status::service_key(
+                &snapshot.service_status,
+            )));
         self.readiness
             .set_text(&crate::i18n::tr(if peaks.is_some() {
                 "capture-ready"

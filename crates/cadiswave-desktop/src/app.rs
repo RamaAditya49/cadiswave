@@ -145,6 +145,9 @@ struct AppUi {
     pages: gtk::Stack,
     device_page: crate::ui::device::DevicePage,
     device_settings: crate::ui::device::settings::DeviceSettings,
+    compact: crate::ui::device::compact::CompactControls,
+    compact_window: adw::Window,
+    connection_notifier: RefCell<crate::ui::device::compact::ConnectionNotifier>,
     event_tail: RefCell<Option<cadiswave_runtime::events::EventTail>>,
     title: adw::WindowTitle,
     warning: gtk::MenuButton,
@@ -315,6 +318,30 @@ impl AppUi {
             header.pack_start(&switcher);
             content.append(&pages);
             window.set_content(Some(&content));
+            let compact = crate::ui::device::compact::CompactControls::new(
+                crate::ui::device::controls::DeviceControls::new(handle.clone()),
+                i18n.clone(),
+            );
+            let compact_window = adw::Window::builder()
+                .title("CadisWave")
+                .default_width(400)
+                .default_height(620)
+                .transient_for(&window)
+                .build();
+            compact_window.add_css_class("cadiswave");
+            let compact_content = gtk::Box::new(gtk::Orientation::Vertical, 0);
+            let compact_header = adw::HeaderBar::new();
+            let compact_title =
+                adw::WindowTitle::new("CadisWave", &crate::i18n::tr("compact-controls"));
+            compact_header.set_title_widget(Some(&compact_title));
+            crate::i18n::bind(&compact_title, "subtitle", "compact-controls");
+            compact_content.append(&compact_header);
+            compact_content.append(&compact.widget);
+            compact_window.set_content(Some(&compact_content));
+            compact_window.connect_close_request(|window| {
+                window.set_visible(false);
+                glib::Propagation::Stop
+            });
             Self {
                 application: application.clone(),
                 paths: paths.clone(),
@@ -331,6 +358,9 @@ impl AppUi {
                     i18n.clone(),
                 ),
                 device_page,
+                compact,
+                compact_window,
+                connection_notifier: RefCell::new(Default::default()),
                 event_tail: RefCell::new(cadiswave_runtime::events::EventTail::start().ok()),
                 title,
                 warning,
@@ -417,6 +447,24 @@ impl AppUi {
             }
         });
         ui.window.add_action(&settings);
+        let compact_action = gio::SimpleAction::new("compact", None);
+        let weak = Rc::downgrade(&ui);
+        compact_action.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                ui.compact.render(&ui.handle.snapshot());
+                ui.compact_window.present();
+            }
+        });
+        ui.window.add_action(&compact_action);
+        let present = gio::SimpleAction::new("present", None);
+        let weak = Rc::downgrade(&ui);
+        present.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                ui.compact_window.set_visible(false);
+                ui.activate();
+            }
+        });
+        ui.application.add_action(&present);
         let mixer = gio::SimpleAction::new("mixer", None);
         let weak = Rc::downgrade(&ui);
         mixer.connect_activate(move |_, _| {
@@ -518,6 +566,7 @@ impl AppUi {
         if let Some(connection) = application.dbus_connection() {
             let open = Rc::downgrade(&ui);
             let toggle = Rc::downgrade(&ui);
+            let compact = Rc::downgrade(&ui);
             let quit = Rc::downgrade(&ui);
             let host = Rc::downgrade(&ui);
             match Tray::new(
@@ -527,6 +576,12 @@ impl AppUi {
                     open: Rc::new(move || {
                         if let Some(ui) = open.upgrade() {
                             ui.activate();
+                        }
+                    }),
+                    compact: Rc::new(move || {
+                        if let Some(ui) = compact.upgrade() {
+                            ui.compact.render(&ui.handle.snapshot());
+                            ui.compact_window.present();
                         }
                     }),
                     toggle_mute: Rc::new(move |unit| {
@@ -971,6 +1026,12 @@ impl AppUi {
         }
         self.device_page.render(&snapshot);
         self.device_settings.render(&snapshot);
+        self.compact.render(&snapshot);
+        let p = crate::ui::device::projection::DeviceProjection::from_snapshot(&snapshot);
+        if let Some(notification) = self.connection_notifier.borrow_mut().observe(&p) {
+            self.application
+                .send_notification(Some("cadiswave-device-connection"), &notification);
+        }
         self.pages
             .page(&self.device_page.widget)
             .set_title(&crate::i18n::tr("device-page"));
@@ -1260,6 +1321,10 @@ impl AppUi {
 
 fn application_menu() -> gio::Menu {
     let menu = gio::Menu::new();
+    menu.append(
+        Some(&crate::i18n::tr("compact-controls")),
+        Some("win.compact"),
+    );
     menu.append(Some(&crate::i18n::tr("about")), Some("win.about"));
     menu.append(
         Some(&crate::i18n::translate("Settings")),
@@ -1327,6 +1392,7 @@ mod tests {
         assert_eq!(
             actions,
             [
+                "win.compact",
                 "win.about",
                 "win.settings",
                 "win.reload-interface",

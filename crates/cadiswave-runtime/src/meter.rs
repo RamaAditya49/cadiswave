@@ -34,6 +34,7 @@ pub struct MeterEvent {
     pub generation: u64,
     pub peak: f64,
     pub channels: ChannelPeaks,
+    pub available: bool,
 }
 
 #[derive(Default)]
@@ -336,7 +337,9 @@ impl MeterMonitor {
                     target.identity == event.identity
                         && *token == event.generation
                         && (tap.registered()
-                            || (event.peak == 0.0 && event.channels.maximum() == 0.0))
+                            || (!event.available
+                                && event.peak == 0.0
+                                && event.channels.maximum() == 0.0))
                 })
             })
     }
@@ -551,6 +554,7 @@ fn meter_reader(
                                 generation: token,
                                 peak,
                                 channels,
+                                available: true,
                             });
                         }
                     }
@@ -590,6 +594,7 @@ fn meter_reader(
             generation: token,
             peak: 0.0,
             channels: ChannelPeaks::zero(target.channels),
+            available: false,
         });
     }
     result

@@ -1017,8 +1017,12 @@ impl Controller {
                     && self.meter_targets.get(&event.key) == Some(&event.identity)
                     && (event.key.starts_with("src:") || event.key.starts_with("mix:"))
                 {
-                    self.channel_meters
-                        .insert(event.key.clone(), event.channels);
+                    if event.available {
+                        self.channel_meters
+                            .insert(event.key.clone(), event.channels);
+                    } else {
+                        self.channel_meters.shift_remove(&event.key);
+                    }
                     self.meters.insert(event.key, event.peak);
                     self.meters_dirty = true;
                     self.dirty = true;

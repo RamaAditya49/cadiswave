@@ -9,3 +9,6 @@ mod tests;
 pub use page::DevicePage;
 
 pub mod settings;
+
+pub mod compact;
+pub mod status;

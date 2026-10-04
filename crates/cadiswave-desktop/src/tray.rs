@@ -58,6 +58,7 @@ type Properties = BTreeMap<String, Variant>;
 
 pub struct TrayCallbacks {
     pub open: Rc<dyn Fn()>,
+    pub compact: Rc<dyn Fn()>,
     pub toggle_mute: Rc<dyn Fn(UnitId)>,
     pub quit: Rc<dyn Fn()>,
     pub host_changed: Rc<dyn Fn(bool)>,
@@ -626,6 +627,10 @@ impl Inner {
                     glib::idle_add_local_once(move || callback(unit));
                 }
             }
+            5 => {
+                let callback = self.callbacks.compact.clone();
+                glib::idle_add_local_once(move || callback());
+            }
             4 => {
                 let callback = self.callbacks.quit.clone();
                 glib::idle_add_local_once(move || callback());
@@ -660,6 +665,14 @@ impl Inner {
                 [("children-display".into(), "submenu".to_variant())].into(),
             ),
             (1, item("Open CadisWave", true, "cadiswave")),
+            (
+                5,
+                item(
+                    &crate::i18n::tr("compact-controls"),
+                    true,
+                    "view-reveal-symbolic",
+                ),
+            ),
             (
                 2,
                 item(
