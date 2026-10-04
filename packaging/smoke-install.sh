@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Actual installed OpenWave, private audio and real GTK/AT-SPI. No host daemon,
+# Actual installed CadisWave, private audio and real GTK/AT-SPI. No host daemon,
 # USB, sound device, user bus, service manager, installation or settings access.
 set -euo pipefail
 umask 077
@@ -9,10 +9,10 @@ usage() {
 Usage: smoke-install.sh --stage DIR [--output-dir DIR] [--driver FILE]
                         [--gtk-tests FILE] [--source-archive FILE --sha256 HEX]
 
-DIR is either an installed prefix or a DESTDIR containing usr/bin/openwave.
+DIR is either an installed prefix or a DESTDIR containing usr/bin/cadiswave.
 Build the external driver beforehand (not during a concurrent source edit):
-  cargo build --locked -p openwave-runtime --example smoke-control
-The optional --gtk-tests is the compiled openwave-desktop library test binary.
+  cargo build --locked -p cadiswave-runtime --example smoke-control
+The optional --gtk-tests is the compiled cadiswave-desktop library test binary.
 Its ignored display-requiring cases run separately on the private Xvfb/bus.
 Run this finite smoke under the harness process supervisor. Its PID namespace
 owns and reaps every child; no host X/audio/session socket is bound. Evidence,
@@ -43,9 +43,9 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
     [[ -n $stage ]] || { usage >&2; exit 2; }
     [[ $(id -u) != 0 ]] || { echo 'Run smoke as an ordinary user in an isolated builder, not root.' >&2; exit 1; }
     stage=$(realpath "$stage")
-    if [[ -x $stage/bin/openwave ]]; then prefix=$stage
-    elif [[ -x $stage/usr/bin/openwave ]]; then prefix=$stage/usr
-    else echo "No installed openwave in $stage/bin or $stage/usr/bin" >&2; exit 1; fi
+    if [[ -x $stage/bin/cadiswave ]]; then prefix=$stage
+    elif [[ -x $stage/usr/bin/cadiswave ]]; then prefix=$stage/usr
+    else echo "No installed cadiswave in $stage/bin or $stage/usr/bin" >&2; exit 1; fi
     source_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
     if [[ -z $driver ]]; then
         for candidate in "${CARGO_TARGET_DIR:-$source_root/target}/debug/examples/smoke-control" "${CARGO_TARGET_DIR:-$source_root/target}/release/examples/smoke-control"; do
@@ -58,7 +58,7 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
         [[ -f $gtk_tests && -x $gtk_tests ]] || { echo 'Missing compiled desktop GTK tests.' >&2; exit 1; }
         gtk_tests=$(realpath "$gtk_tests")
     fi
-    [[ -n $output ]] || output=$(mktemp -d "${TMPDIR:-/tmp}/openwave-smoke.XXXXXXXX")
+    [[ -n $output ]] || output=$(mktemp -d "${TMPDIR:-/tmp}/cadiswave-smoke.XXXXXXXX")
     mkdir -p -- "$output"
     output=$(realpath "$output")
     [[ -z $(printf '%s\n' "$output"/{*,.[!.]*,..?*} | while IFS= read -r p; do [[ ! -e $p && ! -L $p ]] || printf '%s\n' "$p"; done) ]] || { echo 'Smoke output directory must be empty.' >&2; exit 1; }
@@ -71,14 +71,14 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
         archive=$(realpath "$archive")
         actual=$(sha256sum "$archive"); actual=${actual%% *}
         [[ ${actual,,} == ${digest,,} ]] || { echo 'Source archive digest mismatch.' >&2; exit 1; }
-        version=$(<"$prefix/share/openwave/VERSION")
+        version=$(<"$prefix/share/cadiswave/VERSION")
         [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Invalid installed VERSION.' >&2; exit 1; }
         mkdir "$output/archive-proof"
-        for name in VERSION data/style.css icons/openwave.svg icons/openwave-white.svg icons/openwave-black.svg icons/openwave-red.svg; do
+        for name in VERSION data/style.css icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg; do
             mkdir -p "$output/archive-proof/$(dirname "$name")"
-            tar -xOf "$archive" "openwave-$version/$name" > "$output/archive-proof/$name"
+            tar -xOf "$archive" "cadiswave-$version/$name" > "$output/archive-proof/$name"
             case $name in data/style.css) installed=style.css;; *) installed=$name;; esac
-            cmp "$output/archive-proof/$name" "$prefix/share/openwave/$installed"
+            cmp "$output/archive-proof/$name" "$prefix/share/cadiswave/$installed"
         done
         printf '%s  %s\n' "$actual" "$(basename "$archive")" > "$output/evidence/source-archive.sha256"
     fi
@@ -111,12 +111,12 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
         --setenv PATH /work/bin --setenv HOME /work/home
         --setenv XDG_CONFIG_HOME /work/config --setenv XDG_DATA_HOME /work/data
         --setenv XDG_STATE_HOME /work/state --setenv XDG_CACHE_HOME /work/cache
-        --setenv XDG_RUNTIME_DIR /work/run --setenv OPENWAVE_SMOKE_SANDBOX 1
+        --setenv XDG_RUNTIME_DIR /work/run --setenv CADISWAVE_SMOKE_SANDBOX 1
         --setenv LC_ALL C --setenv GDK_BACKEND x11 --setenv GSK_RENDERER cairo
         --setenv GTK_A11Y atspi --setenv NO_AT_BRIDGE 0 --chdir /work)
     if [[ -n $gtk_tests ]]; then
         bwrap_args+=(--ro-bind "$gtk_tests" /gtk-tests
-            --setenv OPENWAVE_TEST_DATA_DIR /installed/share/openwave)
+            --setenv CADISWAVE_TEST_DATA_DIR /installed/share/cadiswave)
     fi
     # The selected Nix AT-SPI launcher has this compile-time daemon path.
     # Expose only the resolved executable, not the host system profile.
@@ -149,7 +149,7 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
 fi
 
 # The internal entry points are not a user-selectable host execution mode.
-[[ ${OPENWAVE_SMOKE_SANDBOX-} == 1 && $HOME == /work/home && $XDG_RUNTIME_DIR == /work/run && ! -e /dev/snd && ! -e /dev/bus/usb ]] || { echo 'Private sandbox guard failed.' >&2; exit 1; }
+[[ ${CADISWAVE_SMOKE_SANDBOX-} == 1 && $HOME == /work/home && $XDG_RUNTIME_DIR == /work/run && ! -e /dev/snd && ! -e /dev/bus/usb ]] || { echo 'Private sandbox guard failed.' >&2; exit 1; }
 if [[ $1 == --inside ]]; then
     # Activate only the accessibility bus required by the GTK checks. Importing
     # host service directories advertises unrelated services, including a
@@ -236,29 +236,29 @@ assert_state() {
     cat /work/evidence/snapshot.json >&2
     return 1
 }
-visible_window() { xdotool search --onlyvisible --name '^OpenWave$'; }
+visible_window() { xdotool search --onlyvisible --name '^CadisWave$'; }
 screenshot() { import -window root "/work/evidence/$1.png"; }
 
 # Informational and dry-run paths execute before sandbox-mode FLATPAK_ID is set.
-expected=$(</installed/share/openwave/VERSION)
-for launcher in openwave openwave-daemon openwave-diag openwave-probe; do
+expected=$(</installed/share/cadiswave/VERSION)
+for launcher in cadiswave cadiswave-daemon cadiswave-diag cadiswave-probe; do
     timeout 15 "/installed/bin/$launcher" --help > "/work/evidence/$launcher.help"
     actual=$(timeout 15 "/installed/bin/$launcher" --version)
     [[ $actual == "$launcher $expected" ]] || { echo "Wrong installed version: $actual" >&2; exit 1; }
     printf '%s\n' "$actual" > "/work/evidence/$launcher.version"
 done
-sha256sum /installed/bin/openwave /installed/bin/openwave-daemon /installed/bin/openwave-diag /installed/bin/openwave-probe /installed/libexec/openwave-maintenance /smoke-control > /work/evidence/executed-binaries.sha256
-timeout 15 /installed/bin/openwave --uninstall --dry-run > /work/evidence/uninstall-inspection.txt
-for resource in VERSION style.css pipewire/52-openwave-mixes.conf wireplumber/51-openwave-wave-xlr.conf icons/openwave.svg icons/openwave-white.svg icons/openwave-black.svg icons/openwave-red.svg install-manifest.json; do
-    [[ -s /installed/share/openwave/$resource ]] || { echo "Missing installed asset: $resource" >&2; exit 1; }
+sha256sum /installed/bin/cadiswave /installed/bin/cadiswave-daemon /installed/bin/cadiswave-diag /installed/bin/cadiswave-probe /installed/libexec/cadiswave-maintenance /smoke-control > /work/evidence/executed-binaries.sha256
+timeout 15 /installed/bin/cadiswave --uninstall --dry-run > /work/evidence/uninstall-inspection.txt
+for resource in VERSION style.css pipewire/52-cadiswave-mixes.conf wireplumber/51-cadiswave-wave-xlr.conf icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg install-manifest.json; do
+    [[ -s /installed/share/cadiswave/$resource ]] || { echo "Missing installed asset: $resource" >&2; exit 1; }
 done
-for name in openwave openwave-white openwave-black openwave-red; do
-    context=status; [[ $name != openwave ]] || context=apps
-    cmp "/installed/share/openwave/icons/$name.svg" "/installed/share/icons/hicolor/scalable/$context/$name.svg"
+for name in cadiswave cadiswave-white cadiswave-black cadiswave-red; do
+    context=status; [[ $name != cadiswave ]] || context=apps
+    cmp "/installed/share/cadiswave/icons/$name.svg" "/installed/share/icons/hicolor/scalable/$context/$name.svg"
 done
-cmp /installed/share/openwave/icons/openwave.svg /installed/share/doc/openwave/icons/openwave.svg
-[[ -x /installed/libexec/openwave-maintenance ]]
-/smoke-control fixtures /work/config/openwave
+cmp /installed/share/cadiswave/icons/cadiswave.svg /installed/share/doc/cadiswave/icons/cadiswave.svg
+[[ -x /installed/libexec/cadiswave-maintenance ]]
+/smoke-control fixtures /work/config/cadiswave
 
 # The server has no udev, ALSA, JACK, systemd or host discovery.
 cat > /work/private-pipewire.conf <<'PIPEWIRE'
@@ -349,7 +349,7 @@ start_audio() {
     /smoke-control wait-node fixture_mic_a
     /smoke-control wait-node fixture_mic_b
     pactl set-source-mute fixture_mic_b 1
-    printf '%s\n' OPENWAVE_SMOKE_AUDIO_READY
+    printf '%s\n' CADISWAVE_SMOKE_AUDIO_READY
 }
 start_tone() {
     # A Pulse playback client is essential: the app must perform its real
@@ -377,12 +377,12 @@ if [[ -x /gtk-tests ]]; then
             2>&1 | tee "/work/logs/gtk-test-$gtk_count.log"
     done < /work/evidence/gtk-tests.txt
     ((gtk_count > 0)) || { echo 'No isolated GTK tests were registered.' >&2; exit 1; }
-    printf 'OPENWAVE_SMOKE_GTK_TESTS_PASSED %s\n' "$gtk_count"
+    printf 'CADISWAVE_SMOKE_GTK_TESTS_PASSED %s\n' "$gtk_count"
 fi
 start_watcher
 # FLATPAK_ID is set ONLY for this deliberately device-free process, to test
 # its matrix/panel/routing mode, not native first-run setup or Polkit success.
-start app_pid openwave.log env FLATPAK_ID=com.github.openwave /installed/bin/openwave --hide
+start app_pid cadiswave.log env FLATPAK_ID=io.github.RamaAditya49.CadisWave /installed/bin/cadiswave --hide
 wait_command test -s /work/tray-item.json
 /smoke-control tray /work/tray-item.json assert-disconnected
 sleep 1
@@ -390,15 +390,15 @@ if visible_window; then echo '--hide exposed a window despite an active tray hos
 /smoke-control tray /work/tray-item.json open
 wait_command visible_window
 screenshot matrix-startup
-printf '%s\n' OPENWAVE_SMOKE_GUI_READY
+printf '%s\n' CADISWAVE_SMOKE_GUI_READY
 start_tone
-/smoke-control wait-node openwave_capture_personal
+/smoke-control wait-node cadiswave_capture_personal
 /smoke-control action set-source-level "('music', 0.5)"
 /smoke-control action set-cell-level "('music', 'personal', 0.4)"
 assert_state '.sources[] | select(.id == "music") | .level == 0.5'
 /smoke-control assert-routes
-/smoke-control record openwave_capture_personal /work/evidence/source-send.f32 0.002
-/smoke-control identity openwave_capture_personal > /work/evidence/publication-before.json
+/smoke-control record cadiswave_capture_personal /work/evidence/source-send.f32 0.002
+/smoke-control identity cadiswave_capture_personal > /work/evidence/publication-before.json
 screenshot matrix
 /smoke-control ui dump > /work/evidence/accessibility-matrix.txt
 
@@ -410,19 +410,19 @@ assert_state '.cells["music.personal"].volume == 0.0 and .cells["music.personal"
 assert_state '.cells["music.personal"].volume == 0.4 and (.cells["music.personal"].muted | not)'
 /smoke-control ui set 'Personal master volume' 0.5
 assert_state '.volumes.personal.volume == 0.5'
-/smoke-control record openwave_capture_personal /work/evidence/master-scaled.f32 0.00025
-/smoke-control identity openwave_capture_personal > /work/evidence/publication-after-master.json
+/smoke-control record cadiswave_capture_personal /work/evidence/master-scaled.f32 0.00025
+/smoke-control identity cadiswave_capture_personal > /work/evidence/publication-after-master.json
 cmp /work/evidence/publication-before.json /work/evidence/publication-after-master.json
 /smoke-control ui click 'Personal output' 'toggle button'
 /smoke-control ui click 'Fixture Output'
 assert_state '.outputs.personal == "fixture_output"'
-/smoke-control wait-node openwave_loop_output_personal
+/smoke-control wait-node cadiswave_loop_output_personal
 /smoke-control ui click 'Personal output' 'toggle button'
 /smoke-control ui click 'Not monitored'
 assert_state '.outputs.personal == "none"'
 /smoke-control action toggle-source-mute "'music'"
 assert_state '.sources[] | select(.id == "music") | .muted'
-/smoke-control record openwave_capture_personal /work/evidence/source-muted.f32 0
+/smoke-control record cadiswave_capture_personal /work/evidence/source-muted.f32 0
 /smoke-control action toggle-source-mute "'music'"
 /smoke-control action switch-group "'Mics'"
 assert_state '([.sources[] | select(.group == "Mics" and .muted == false)] | length) == 1 and ([.sources[] | select(.id == "mic_b" and .muted == false)] | length) == 1'
@@ -433,12 +433,12 @@ scene=$(jq -r 'to_entries[] | select(.value == "Smoke scene") | .key' /work/evid
 assert_state '.cells["music.personal"].volume == 0.2'
 /smoke-control action apply-scene "'$scene'"
 assert_state '.cells["music.personal"].volume == 0.4 and .volumes.personal.volume == 0.5'
-/smoke-control record openwave_capture_personal /work/evidence/scene-restored.f32 0.00025
+/smoke-control record cadiswave_capture_personal /work/evidence/scene-restored.f32 0.00025
 /smoke-control break-link /work/evidence/repaired-link.json
-/smoke-control record openwave_capture_personal /work/evidence/repaired-link.f32 0.00025
+/smoke-control record cadiswave_capture_personal /work/evidence/repaired-link.f32 0.00025
 for mix in personal chat record; do /smoke-control action set-cell-level "('music', '$mix', 0.0)"; done
 assert_state '[.cells | to_entries[] | select(.key | startswith("music.")) | .value.volume] | all(. == 0)'
-/smoke-control record openwave_capture_personal /work/evidence/all-sends-zero.f32 0
+/smoke-control record cadiswave_capture_personal /work/evidence/all-sends-zero.f32 0
 /smoke-control assert-routes
 /smoke-control action apply-scene "'$scene'"
 assert_state '.cells["music.personal"].volume == 0.4'
@@ -454,11 +454,11 @@ xdotool key Escape
 # Activate GTK's actual close button. xdotool windowclose calls XDestroyWindow
 # and would bypass close-request, so it is deliberately not used.
 /smoke-control ui click 'Close'
-wait_command bash -c '! xdotool search --onlyvisible --name "^OpenWave$"'
+wait_command bash -c '! xdotool search --onlyvisible --name "^CadisWave$"'
 /smoke-control tray /work/tray-item.json open
 wait_command visible_window
 /smoke-control ui click 'Close'
-wait_command bash -c '! xdotool search --onlyvisible --name "^OpenWave$"'
+wait_command bash -c '! xdotool search --onlyvisible --name "^CadisWave$"'
 stop watcher_pid
 wait_command visible_window
 screenshot host-loss
@@ -466,25 +466,25 @@ start_watcher
 wait_command test -s /work/tray-item.json
 /smoke-control tray /work/tray-item.json assert-disconnected
 /smoke-control ui click 'Close'
-wait_command bash -c '! xdotool search --onlyvisible --name "^OpenWave$"'
+wait_command bash -c '! xdotool search --onlyvisible --name "^CadisWave$"'
 /smoke-control activate
 wait_command visible_window
 screenshot host-return
 
 # Restart ONLY our captured private server children. Snapshot state stays in
 # the running app; recreated nodes must restore master attenuation before use.
-/smoke-control identity openwave_capture_personal > /work/evidence/before-restart.json
+/smoke-control identity cadiswave_capture_personal > /work/evidence/before-restart.json
 stop tone_pid
 stop policy_pid
 stop pulse_pid
 stop pipewire_pid
 start_audio
 start_tone
-/smoke-control wait-node openwave_capture_personal
+/smoke-control wait-node cadiswave_capture_personal
 /smoke-control assert-routes
-/smoke-control identity openwave_capture_personal > /work/evidence/after-restart.json
+/smoke-control identity cadiswave_capture_personal > /work/evidence/after-restart.json
 if cmp -s /work/evidence/before-restart.json /work/evidence/after-restart.json; then echo 'Private server restart did not change publication generation.' >&2; exit 1; fi
-/smoke-control record openwave_capture_personal /work/evidence/restart-restored.f32 0.00025
+/smoke-control record cadiswave_capture_personal /work/evidence/restart-restored.f32 0.00025
 /smoke-control action levels
 /smoke-control state levels > /work/evidence/quiet-levels.json
 instrument='has("src:music") and has("mix:personal") and .["src:music"] > 0'
@@ -494,7 +494,7 @@ jq -e "$instrument and .[\"mix:personal\"] == 0" /work/evidence/quiet-levels.jso
 /smoke-control action set-source-level "('music', 1.0)"
 /smoke-control ui set 'Personal master volume' 1.0
 assert_state '(.sources[] | select(.id == "music") | .level == 1.0) and .volumes.personal.volume == 1.0'
-/smoke-control record openwave_capture_personal /work/evidence/meter-audible.f32 0.016
+/smoke-control record cadiswave_capture_personal /work/evidence/meter-audible.f32 0.016
 /smoke-control action levels
 /smoke-control state levels > /work/evidence/levels.json
 jq -e 'has("src:music") and has("mix:personal") and .["src:music"] > 0 and .["mix:personal"] > 0' /work/evidence/levels.json >/dev/null
@@ -509,7 +509,7 @@ Real PCM: Python-compatible 0.002/0.00025 attenuation, source mute and zero send
 publication identity, owned-link repair and private-server generation restoration.
 Real external GTK/GActions: master/output, trim/send/mute/group/scenes, settings,
 scene dialog, close/reopen, SNI host disappearance/return and asynchronous quit.
-Screenshots are actual OpenWave; visual layout acceptance remains human-reviewed.
+Screenshots are actual CadisWave; visual layout acceptance remains human-reviewed.
 Scope: device-free FLATPAK_ID panel/routing mode, NOT native first-run/Polkit,
 physical USB, host service, package-manager or real Flatpak-package acceptance.
 RESULT

@@ -55,8 +55,8 @@ cd "$WORK/source"
 # Bootstrap the GTK-free utility from the exact staged inputs and locked graph.
 # This is source preparation, the only phase allowed to fetch locked crates.
 export CARGO_TARGET_DIR="$WORK/bootstrap-target"
-cargo build --locked -p openwave-runtime --bin openwave-maintenance
-HELPER="$CARGO_TARGET_DIR/debug/openwave-maintenance"
+cargo build --locked -p cadiswave-runtime --bin cadiswave-maintenance
+HELPER="$CARGO_TARGET_DIR/debug/cadiswave-maintenance"
 if [[ "$MODE" == tag ]]; then
     V=$("$HELPER" version --file VERSION --tag "$TAG")
 else
@@ -79,10 +79,10 @@ elif [[ -e .cargo/config ]]; then
 fi
 "$HELPER" merge-vendor-config --existing .cargo/config.toml --emitted "$WORK/vendor-config.toml" --output .cargo/config.toml
 cd "$WORK"
-mv source "openwave-$V"
-SOURCE="openwave-$V.tar.gz"
+mv source "cadiswave-$V"
+SOURCE="cadiswave-$V.tar.gz"
 # Archive the whole prepared tree, including vendor/.cargo-checksum.json files.
-tar -czf "$OUT/$SOURCE" "openwave-$V"
+tar -czf "$OUT/$SOURCE" "cadiswave-$V"
 DIGEST=$(sha256sum "$OUT/$SOURCE"); DIGEST=${DIGEST%% *}
 "$HELPER" render-aur --version "$V" --sha256 "$DIGEST" --output "$OUT/PKGBUILD"
 printf '%s\n' "$V" > "$OUT/version.txt"

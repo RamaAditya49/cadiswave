@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=CadisWave
+Comment=Elgato Wave Control for Linux
+Exec=cadiswave
+Icon=cadiswave
+Type=Application
+Categories=AudioVideo;Audio;Mixer;
+Terminal=false

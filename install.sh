@@ -3,7 +3,7 @@
 # Run as the login user. PREFIX defaults to /usr/local; ~/.local is supported.
 set -eu
 
-REPO=https://github.com/rikkichy/openwave.git
+REPO=https://github.com/RamaAditya49/cadiswave.git
 PREFIX=${PREFIX:-/usr/local}
 RUST_VERSION=1.98.1
 msg() { printf ':: %s\n' "$*"; }
@@ -51,7 +51,7 @@ fi
 pkg-config --atleast-version=4.14 gtk4 || die 'The host provides GTK older than 4.14; use a supported newer host, Nix or the Flatpak build.'
 pkg-config --atleast-version=1.5 libadwaita-1 || die 'The host provides libadwaita older than 1.5; use a supported newer host, Nix or the Flatpak build.'
 
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/openwave-install-XXXXXXXXXX")
+WORK=$(mktemp -d "${TMPDIR:-/tmp}/cadiswave-install-XXXXXXXXXX")
 WORK=$(realpath -e -- "$WORK")
 BOOTSTRAP=
 BOOTSTRAP_TRUSTED=0
@@ -72,7 +72,7 @@ cleanup() {
         if [ "$INSTALL_COMPLETE" = 1 ]; then
             warn "The native payload was installed, but installer cleanup did not finish. Prepared inputs are retained at $WORK"
             if [ -n "$BOOTSTRAP" ]; then
-                warn "Ask the administrator to inspect and remove only this invocation's verified $BOOTSTRAP/openwave-maintenance (if still present) and its then-empty bootstrap directory."
+                warn "Ask the administrator to inspect and remove only this invocation's verified $BOOTSTRAP/cadiswave-maintenance (if still present) and its then-empty bootstrap directory."
             fi
             return
         fi
@@ -82,7 +82,7 @@ cleanup() {
                 warn "The trusted native bootstrap was retained at $BOOTSTRAP"
                 if [ "$LEGACY_PENDING" = 1 ]; then
                     warn 'Finish the confirmed legacy retirement before installing the retained payload:'
-                    quote "$SUDO"; printf ' '; quote "$BOOTSTRAP/openwave-maintenance"; printf ' retire-legacy --prefix '; quote "$PREFIX"
+                    quote "$SUDO"; printf ' '; quote "$BOOTSTRAP/cadiswave-maintenance"; printf ' retire-legacy --prefix '; quote "$PREFIX"
                     if [ -n "$LEGACY_MODULE" ]; then printf ' --module-dir '; quote "$LEGACY_MODULE"; fi
                     printf ' --yes\n'
                 fi
@@ -94,8 +94,8 @@ cleanup() {
             if [ "$PRIVILEGED" = 1 ]; then
                 if [ "$BOOTSTRAP_TRUSTED" = 1 ]; then
                     warn 'After resolving the reported conflict, install the exact retained stage and accepted receipt with:'
-                    quote "$SUDO"; printf ' '; quote "$BOOTSTRAP/openwave-maintenance"; printf ' install-payload --stage '; quote "$WORK/stage"; printf ' --prefix '; quote "$PREFIX"; printf ' --expected-sha256 '; quote "$RECEIPT_SHA256"; printf '\n'
-                    warn "After successful continuation, the administrator may remove only the verified $BOOTSTRAP/openwave-maintenance and its then-empty bootstrap directory."
+                    quote "$SUDO"; printf ' '; quote "$BOOTSTRAP/cadiswave-maintenance"; printf ' install-payload --stage '; quote "$WORK/stage"; printf ' --prefix '; quote "$PREFIX"; printf ' --expected-sha256 '; quote "$RECEIPT_SHA256"; printf '\n'
+                    warn "After successful continuation, the administrator may remove only the verified $BOOTSTRAP/cadiswave-maintenance and its then-empty bootstrap directory."
                 else
                     warn 'No verified trusted helper is available. Retry install.sh as the login user to provision one with administrator authorization; never elevate make or a staged binary.'
                 fi
@@ -129,7 +129,7 @@ export RUSTUP_TOOLCHAIN="$RUST_VERSION"
 PATH="${CARGO_HOME:-$HOME/.cargo}/bin:$PATH"
 export PATH
 
-if [ -f Cargo.toml ] && [ -f Cargo.lock ] && [ -f Makefile ] && [ -f wavexlr.desktop ]; then
+if [ -f Cargo.toml ] && [ -f Cargo.lock ] && [ -f Makefile ] && [ -f cadiswave.desktop ]; then
     SRC=$(pwd -P)
     msg "Using checkout: $SRC"
 else
@@ -146,10 +146,10 @@ rustup run "$RUST_VERSION" make -C "$SRC" build
 # this private prepared payload, not changing files in the original checkout.
 PAYLOAD="$WORK/payload"
 install -dm700 "$PAYLOAD"
-for file in Makefile VERSION wavexlr.desktop openwave-autostart.desktop \
-    data/style.css wireplumber/51-openwave-wave-xlr.conf pipewire/52-openwave-mixes.conf \
-    com.github.openwave.metainfo.xml icons/openwave.svg icons/openwave-white.svg \
-    icons/openwave-black.svg icons/openwave-red.svg README.md LICENSE \
+for file in Makefile VERSION cadiswave.desktop cadiswave-autostart.desktop \
+    data/style.css wireplumber/51-cadiswave-wave-xlr.conf pipewire/52-cadiswave-mixes.conf \
+    io.github.RamaAditya49.CadisWave.metainfo.xml icons/cadiswave.svg icons/cadiswave-white.svg \
+    icons/cadiswave-black.svg icons/cadiswave-red.svg README.md LICENSE \
     packaging/asset-attribution.txt docs/ARCHITECTURE.md docs/hardware-support.md \
     docs/install-bazzite.md docs/protocol.md docs/troubleshooting.md; do
     install -Dm644 "$SRC/$file" "$PAYLOAD/$file"
@@ -157,15 +157,15 @@ done
 BUILD_BIN=${BINARY_DIR:-${CARGO_TARGET_DIR:-target}/release}
 case "$BUILD_BIN" in /*) ;; *) BUILD_BIN="$SRC/$BUILD_BIN";; esac
 install -dm755 "$PAYLOAD/bin"
-for binary in openwave openwave-daemon openwave-diag openwave-probe openwave-maintenance; do
+for binary in cadiswave cadiswave-daemon cadiswave-diag cadiswave-probe cadiswave-maintenance; do
     install -m755 "$BUILD_BIN/$binary" "$PAYLOAD/bin/$binary"
 done
-HELPER="$PAYLOAD/bin/openwave-maintenance"
+HELPER="$PAYLOAD/bin/cadiswave-maintenance"
 make -C "$PAYLOAD" install PREFIX="$PREFIX" DESTDIR="$WORK/stage" BINARY_DIR="$PAYLOAD/bin" INSTALL_METHOD=manual
-HELPER="$WORK/stage$PREFIX/libexec/openwave-maintenance"
+HELPER="$WORK/stage$PREFIX/libexec/cadiswave-maintenance"
 HELPER_SHA256=$(sha256sum -- "$HELPER")
 HELPER_SHA256=${HELPER_SHA256%% *}
-RECEIPT_SHA256=$(sha256sum -- "$WORK/stage$PREFIX/share/openwave/install-manifest.json")
+RECEIPT_SHA256=$(sha256sum -- "$WORK/stage$PREFIX/share/cadiswave/install-manifest.json")
 RECEIPT_SHA256=${RECEIPT_SHA256%% *}
 
 # Determine whether final copying needs privilege without creating the target.
@@ -195,7 +195,7 @@ verify_bootstrap() {
     trusted_ancestors "$BOOTSTRAP"
     [ "$(stat -c %a -- "$BOOTSTRAP")" = 755 ] || die 'Bootstrap directory must permit trusted traversal.'
     [ "$(stat -c '%d:%i' -- "$BOOTSTRAP")" = "$BOOTSTRAP_ID" ] || die 'Bootstrap directory was replaced; preserving it for administrator inspection.'
-    bootstrap_helper="$BOOTSTRAP/openwave-maintenance"
+    bootstrap_helper="$BOOTSTRAP/cadiswave-maintenance"
     [ ! -L "$bootstrap_helper" ] && [ -f "$bootstrap_helper" ] || die 'Bootstrap helper must be a regular non-symlink file.'
     [ "$(stat -c %u -- "$bootstrap_helper")" = 0 ] || die 'Bootstrap helper is not administrator-owned.'
     [ "$(stat -c %a -- "$bootstrap_helper")" = 755 ] || die 'Bootstrap helper permissions are not trusted.'
@@ -211,12 +211,12 @@ prepare_bootstrap() {
     msg 'Administrator authorization is required to copy the prepared helper into a trusted bootstrap outside any old installation inventory.'
     as_root install -dm755 "$PREFIX/libexec"
     trusted_ancestors "$PREFIX/libexec"
-    BOOTSTRAP=$(as_root mktemp -d "$PREFIX/libexec/openwave-bootstrap-XXXXXXXXXX")
+    BOOTSTRAP=$(as_root mktemp -d "$PREFIX/libexec/cadiswave-bootstrap-XXXXXXXXXX")
     BOOTSTRAP_ID=$(stat -c '%d:%i' -- "$BOOTSTRAP")
     trusted_ancestors "$BOOTSTRAP"
-    as_root install -m755 "$HELPER" "$BOOTSTRAP/openwave-maintenance"
+    as_root install -m755 "$HELPER" "$BOOTSTRAP/cadiswave-maintenance"
     as_root chmod 755 "$BOOTSTRAP"
-    BOOTSTRAP_HELPER_ID=$(stat -c '%d:%i' -- "$BOOTSTRAP/openwave-maintenance")
+    BOOTSTRAP_HELPER_ID=$(stat -c '%d:%i' -- "$BOOTSTRAP/cadiswave-maintenance")
     verify_bootstrap
 }
 
@@ -258,7 +258,7 @@ if ! "$HELPER" record-install --check --prefix "$PREFIX" --method manual; then
     if [ "$PRIVILEGED" = 1 ]; then
         prepare_bootstrap
         verify_bootstrap
-        as_root "$BOOTSTRAP/openwave-maintenance" retire-legacy "$@" --yes
+        as_root "$BOOTSTRAP/cadiswave-maintenance" retire-legacy "$@" --yes
     else
         "$HELPER" retire-legacy "$@" --yes
     fi
@@ -270,7 +270,7 @@ msg "Installing the prepared native payload to $PREFIX (not an atomic upgrade)"
 if [ "$PRIVILEGED" = 1 ]; then
     prepare_bootstrap
     verify_bootstrap
-    as_root "$BOOTSTRAP/openwave-maintenance" install-payload --stage "$WORK/stage" --prefix "$PREFIX" --expected-sha256 "$RECEIPT_SHA256"
+    as_root "$BOOTSTRAP/cadiswave-maintenance" install-payload --stage "$WORK/stage" --prefix "$PREFIX" --expected-sha256 "$RECEIPT_SHA256"
 else
     make -C "$PAYLOAD" install PREFIX="$PREFIX" BINARY_DIR="$PAYLOAD/bin" INSTALL_METHOD=manual
 fi
@@ -278,7 +278,7 @@ INSTALL_COMPLETE=1
 if [ -n "$BOOTSTRAP" ]; then
     # Exact files created above only; application inventory removal is native.
     verify_bootstrap
-    as_root rm -- "$BOOTSTRAP/openwave-maintenance"
+    as_root rm -- "$BOOTSTRAP/cadiswave-maintenance"
     BOOTSTRAP_TRUSTED=0
     as_root rmdir -- "$BOOTSTRAP"
     BOOTSTRAP=
@@ -292,9 +292,9 @@ if command -v update-desktop-database >/dev/null 2>&1; then
     fi
 fi
 SUCCESS=1
-msg "Installed. Launch $PREFIX/bin/openwave as your user. Settings and integration were preserved; review first-run setup separately."
+msg "Installed. Launch $PREFIX/bin/cadiswave as your user. Settings and integration were preserved; review first-run setup separately."
 if [ "$LEGACY_RETIRED" = 1 ]; then
     # The retired application's generated mixes conf keeps its sinks loaded,
-    # and native OpenWave will not adopt sinks it cannot prove it created.
-    msg 'After first-run setup, restart the audio session once so its sinks are recreated by native OpenWave: systemctl --user restart pipewire pipewire-pulse wireplumber openwave.service'
+    # and native CadisWave will not adopt sinks it cannot prove it created.
+    msg 'After first-run setup, restart the audio session once so its sinks are recreated by native CadisWave: systemctl --user restart pipewire pipewire-pulse wireplumber cadiswave.service'
 fi

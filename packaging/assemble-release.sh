@@ -42,8 +42,8 @@ verify_and_copy() {
 verify_and_copy "$SOURCE" source.sha256
 V=$(cat "$SOURCE/version.txt")
 [[ "$V" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || fail 'invalid release version'
-[[ -f "$SOURCE/openwave-$V.tar.gz" && -f "$SOURCE/PKGBUILD" && -f "$SOURCE/source-provenance.txt" ]] || fail 'incomplete source artifact'
-DIGEST=$(sha256sum "$SOURCE/openwave-$V.tar.gz"); DIGEST=${DIGEST%% *}
+[[ -f "$SOURCE/cadiswave-$V.tar.gz" && -f "$SOURCE/PKGBUILD" && -f "$SOURCE/source-provenance.txt" ]] || fail 'incomplete source artifact'
+DIGEST=$(sha256sum "$SOURCE/cadiswave-$V.tar.gz"); DIGEST=${DIGEST%% *}
 inputs=("$INPUT"/*)
 ((${#inputs[@]} == 3)) || fail 'exactly three native x86_64 distro artifacts are required'
 arch=x86_64
@@ -55,9 +55,9 @@ for distro in ubuntu24.04 debian13 fedora43; do
     expected=$(printf 'source_sha256=%s\ndistro=%s\narch=%s\nrust=1.98.1' "$DIGEST" "$distro" "$arch")
     [[ $(cat "$directory/build-provenance-$distro-$arch.txt") == "$expected" ]] || fail "source provenance mismatch: $name"
     if [[ "$distro" == fedora43 ]]; then
-        payload="openwave-$V-1.fc43.$arch.rpm"
+        payload="cadiswave-$V-1.fc43.$arch.rpm"
     else
-        payload="openwave_${V}-1${distro}_amd64.deb"
+        payload="cadiswave_${V}-1${distro}_amd64.deb"
     fi
     [[ -f "$directory/$payload" ]] || fail "missing expected payload: $payload"
     files=("$directory"/*)
@@ -68,4 +68,4 @@ sha256sum * > sha256sums.txt
 # Publish exactly this list (including the checksum manifest), never shell globs
 # selecting stale files. The list cannot hash itself and is not self-listed.
 printf '%s\n' * > release-objects
-printf 'Assembled three x86_64 native packages from openwave-%s.tar.gz; no publication performed.\n' "$V"
+printf 'Assembled three x86_64 native packages from cadiswave-%s.tar.gz; no publication performed.\n' "$V"

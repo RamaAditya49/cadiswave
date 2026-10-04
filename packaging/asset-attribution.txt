@@ -1,12 +1,7 @@
-OpenWave is maintained by rikkichy and contributors.
-Project: https://github.com/rikkichy/openwave
-
-The four SVGs in icons/ are replacement artwork supplied for OpenWave,
-not the icons from PR #8. They are distributed under the project's MIT
-license (see LICENSE).
-
-The initial AppStream, RPM, Flatpak and release packaging designs were
-adapted from OpenWave PR #8 by Zedwil <nylegarcia01@gmail.com>,
-reference commit 24940b4.
-AppStream metadata is distributed under CC0-1.0 as declared in the XML.
-Packaging corrections are subsequent contributions, not solely PR #8 work.
+CadisWave is maintained by CADIS and contributors.
+Project: https://github.com/RamaAditya49/cadiswave
+CadisWave derives from OpenWave by rikkichy and contributors.
+Upstream: https://github.com/rikkichy/openwave
+The MIT license retains the original copyright.
+CadisWave application artwork is maintained in icons/.
+Design reference files are excluded from this repository.

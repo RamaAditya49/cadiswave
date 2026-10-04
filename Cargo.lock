@@ -870,7 +870,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
-name = "openwave-core"
+name = "cadiswave-core"
 version = "1.2.0"
 dependencies = [
  "caseless",
@@ -883,7 +883,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "openwave-desktop"
+name = "cadiswave-desktop"
 version = "1.2.0"
 dependencies = [
  "async-channel",
@@ -895,13 +895,13 @@ dependencies = [
  "indexmap",
  "libadwaita",
  "log",
- "openwave-core",
- "openwave-runtime",
+ "cadiswave-core",
+ "cadiswave-runtime",
  "serde_json",
 ]
 
 [[package]]
-name = "openwave-runtime"
+name = "cadiswave-runtime"
 version = "1.2.0"
 dependencies = [
  "async-channel",
@@ -911,7 +911,7 @@ dependencies = [
  "glib",
  "indexmap",
  "log",
- "openwave-core",
+ "cadiswave-core",
  "rusb",
  "rustix",
  "serde",

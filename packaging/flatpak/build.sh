@@ -119,7 +119,7 @@ probe_compiler() {
     local directory=$1
     flatpak build-init --arch="$arch" --writable-sdk \
         --sdk-extension=org.freedesktop.Sdk.Extension.rust-stable \
-        "$directory" com.github.openwave.CompilerCheck org.gnome.Sdk org.gnome.Platform 50
+        "$directory" io.github.RamaAditya49.CadisWave.CompilerCheck org.gnome.Sdk org.gnome.Platform 50
     flatpak build --unshare=network --unshare=ipc --nodevice=all \
         --nosocket=session-bus --nosocket=system-bus --nosocket=wayland \
         --nosocket=x11 --nosocket=pulseaudio --nofilesystem=host \
@@ -158,8 +158,8 @@ if $fallback; then
         "$work/extension-build" "$extension_source/builder.json"
     # Replace only the private builder's extension, not a host installation.
     flatpak uninstall --user --noninteractive --no-related "$rust_ref"
-    flatpak remote-add --user --no-gpg-verify openwave-local-rust "$work/extension-repo"
-    flatpak install --user --noninteractive --no-related --no-deps openwave-local-rust "$rust_ref"
+    flatpak remote-add --user --no-gpg-verify cadiswave-local-rust "$work/extension-repo"
+    flatpak install --user --noninteractive --no-related --no-deps cadiswave-local-rust "$rust_ref"
     printf '%s %s (local build from %s)\n' "$(flatpak info --user --show-commit "$rust_ref")" \
         "$rust_ref" "$extension_source_commit" >> "$output/builder-commits.txt"
 fi
@@ -170,9 +170,9 @@ compiler_final=$(cat "$output/compiler-final.txt")
 
 # Consume the same prepared archive used by the native packages. No checkout,
 # cargo cache or network dependency resolution is substituted for its vendor tree.
-flatpak-builder --show-manifest "$script_dir/com.github.openwave.yml" > "$work/manifest-template.json"
+flatpak-builder --show-manifest "$script_dir/io.github.RamaAditya49.CadisWave.yml" > "$work/manifest-template.json"
 jq --arg archive "$archive" --arg digest "$digest" '
-    .modules |= map(if .name == "openwave" then
+    .modules |= map(if .name == "cadiswave" then
         .sources = [{type:"archive", path:$archive, sha256:$digest}]
         else . end)
 ' "$work/manifest-template.json" > "$output/manifest.json"
@@ -181,22 +181,22 @@ flatpak-builder --user --arch="$arch" --state-dir="$work/app-state" \
 flatpak-builder --user --arch="$arch" --state-dir="$work/app-state" \
     --disable-download --sandbox --disable-rofiles-fuse --repo="$output/repo" \
     "$work/app-build" "$output/manifest.json"
-flatpak build-bundle --arch="$arch" "$output/repo" "$output/openwave-$arch.flatpak" com.github.openwave
-flatpak remote-add --user --no-gpg-verify openwave-built "$output/repo"
-flatpak install --user --noninteractive --no-related --no-deps openwave-built "app/com.github.openwave/$arch/master"
+flatpak build-bundle --arch="$arch" "$output/repo" "$output/cadiswave-$arch.flatpak" io.github.RamaAditya49.CadisWave
+flatpak remote-add --user --no-gpg-verify cadiswave-built "$output/repo"
+flatpak install --user --noninteractive --no-related --no-deps cadiswave-built "app/io.github.RamaAditya49.CadisWave/$arch/master"
 # Run the actual installed package, but strip ALL its normal permissions for
 # informational/plugin proof: no host USB, audio sockets, buses or services.
-flatpak run --user --arch="$arch" --sandbox --command=sh com.github.openwave -ec '
+flatpak run --user --arch="$arch" --sandbox --command=sh io.github.RamaAditya49.CadisWave -ec '
     cd /tmp
-    version=$(cat /app/share/openwave/VERSION)
-    test "$(/app/bin/openwave --version)" = "openwave $version"
-    test "$(/app/bin/openwave-daemon --version)" = "openwave-daemon $version"
-    test "$(/app/bin/openwave-diag --version)" = "openwave-diag $version"
-    /app/bin/openwave --help
-    /app/bin/openwave-daemon --help
-    /app/bin/openwave-diag --help
-    /app/bin/openwave-probe --help
-    test -s /app/share/openwave/style.css
+    version=$(cat /app/share/cadiswave/VERSION)
+    test "$(/app/bin/cadiswave --version)" = "cadiswave $version"
+    test "$(/app/bin/cadiswave-daemon --version)" = "cadiswave-daemon $version"
+    test "$(/app/bin/cadiswave-diag --version)" = "cadiswave-diag $version"
+    /app/bin/cadiswave --help
+    /app/bin/cadiswave-daemon --help
+    /app/bin/cadiswave-diag --help
+    /app/bin/cadiswave-probe --help
+    test -s /app/share/cadiswave/style.css
     for tool in pactl wpctl pw-top pw-cat pw-dump pw-link pw-cli pw-loopback pipewire amixer aplay; do
         test -x "/app/bin/$tool"
     done
@@ -210,6 +210,6 @@ flatpak run --user --arch="$arch" --sandbox --command=sh com.github.openwave -ec
         case "$resolved" in *"not found"*|*"undefined symbol"*) exit 1 ;; esac
     done
 ' | tee "$output/installed-proof.txt"
-sha256sum "$output/openwave-$arch.flatpak" > "$output/sha256sums.txt"
+sha256sum "$output/cadiswave-$arch.flatpak" > "$output/sha256sums.txt"
 printf 'PASSED: native %s Flatpak build and installed informational/plugin proof.\n' "$arch" | tee "$output/result.txt"
 printf 'No physical USB, graphical UI or live audio verification is claimed.\nPrivate builder/evidence retained: %s\n' "$work"

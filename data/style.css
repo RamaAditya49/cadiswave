@@ -1,19 +1,19 @@
-.openwave-mix-slider trough {
+.cadiswave-mix-slider trough {
     min-height: 8px;
     background-color: alpha(@card_fg_color, 0.12);
     border-radius: 4px;
 }
 
-.openwave-mix-slider highlight {
+.cadiswave-mix-slider highlight {
     background-color: #4ade80;
     border-radius: 4px;
 }
 
-.openwave-mix-slider:disabled highlight {
+.cadiswave-mix-slider:disabled highlight {
     background-color: alpha(#4ade80, 0.35);
 }
 
-.openwave-mix-slider slider {
+.cadiswave-mix-slider slider {
     min-width: 14px;
     min-height: 14px;
     background-color: #3b82f6;
@@ -22,53 +22,53 @@
     box-shadow: 0 1px 2px alpha(black, 0.4);
 }
 
-.openwave-mix-slider:disabled slider {
+.cadiswave-mix-slider:disabled slider {
     background-color: alpha(#3b82f6, 0.5);
 }
 
-.openwave-mix-header,
-.openwave-source-cell,
-.openwave-mix-cell {
+.cadiswave-mix-header,
+.cadiswave-source-cell,
+.cadiswave-mix-cell {
     border-radius: 10px;
 }
 
-.openwave-mix-cell {
+.cadiswave-mix-cell {
     padding: 10px 12px;
 }
 
-.openwave-mix-cell:disabled {
+.cadiswave-mix-cell:disabled {
     opacity: 0.55;
 }
-.openwave-source-waiting {
+.cadiswave-source-waiting {
     opacity: 0.55;
 }
 
-.openwave-drop-target {
+.cadiswave-drop-target {
   box-shadow: inset 0 3px 0 0 @accent_bg_color;
 }
 
 /* A muted source row: unmistakable scanning down the column, without
    hiding the controls that un-mute it. */
-.openwave-source-cell.openwave-muted {
+.cadiswave-source-cell.cadiswave-muted {
   background-color: alpha(@error_color, 0.12);
 }
-.openwave-muted label,
-label.openwave-muted {
+.cadiswave-muted label,
+label.cadiswave-muted {
   color: @error_color;
 }
-.openwave-muted image,
-image.openwave-muted {
+.cadiswave-muted image,
+image.cadiswave-muted {
   color: @error_color;
 }
 
 /* Exclusivity group badge on a source row. */
-.openwave-group-badge {
+.cadiswave-group-badge {
   color: @accent_color;
   font-size: 0.75em;
   opacity: 0.9;
 }
 
 /* Releasing here groups the dragged row with this one, rather than moving it. */
-.openwave-drop-group {
+.cadiswave-drop-group {
   box-shadow: inset 0 0 0 2px @accent_bg_color;
 }

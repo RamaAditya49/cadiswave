@@ -1,18 +1,18 @@
-# Maintainer: rikkichy
+# Maintainer: CADIS <agent@cadis.digital>
 # Use the prepared, vendored source archive from packaging/build-release.sh.
 # render-aur replaces only pkgver, source, sha256sums and _srcdir below.
-pkgname=openwave
+pkgname=cadiswave
 pkgver=$(cat "${startdir:-.}/VERSION")
 pkgrel=1
 pkgdesc="Linux control application for Elgato Wave hardware and PipeWire mixing"
 arch=('x86_64')
-url="https://github.com/rikkichy/openwave"
+url="https://github.com/RamaAditya49/cadiswave"
 license=('MIT')
 depends=('gtk4>=4.14' 'libadwaita>=1.5' 'adwaita-icon-theme' 'libusb' 'pipewire' 'wireplumber' 'alsa-utils' 'libpulse' 'swh-plugins' 'polkit')
 makedepends=('make' 'pkgconf' 'rust>=1.98.1' 'clang')
-source=("openwave-$pkgver.tar.gz")
+source=("cadiswave-$pkgver.tar.gz")
 sha256sums=('SKIP')
-_srcdir="openwave-$pkgver"
+_srcdir="cadiswave-$pkgver"
 
 build() {
     cd "$srcdir/$_srcdir"

@@ -1,6 +1,6 @@
 # Elgato Wave control protocol
 
-This is an engineering reference for the profiles enabled in OpenWave, derived from reverse engineering rather than a vendor specification. It describes implemented offsets, not a physical-validation certificate. The exact profile table is [`openwave_core::profiles::PROFILES`](../crates/openwave-core/src/profiles.rs); [`openwave_core::protocol`](../crates/openwave-core/src/protocol.rs) validates and encodes supported fields, and [`openwave_runtime::device::VendorDevice`](../crates/openwave-runtime/src/device.rs) owns native USB transfers. See [hardware support](hardware-support.md) for the exact PID scope and cautions.
+This is an engineering reference for the profiles enabled in CadisWave, derived from reverse engineering rather than a vendor specification. It describes implemented offsets, not a physical-validation certificate. The exact profile table is [`cadiswave_core::profiles::PROFILES`](../crates/cadiswave-core/src/profiles.rs); [`cadiswave_core::protocol`](../crates/cadiswave-core/src/protocol.rs) validates and encodes supported fields, and [`cadiswave_runtime::device::VendorDevice`](../crates/cadiswave-runtime/src/device.rs) owns native USB transfers. See [hardware support](hardware-support.md) for the exact PID scope and cautions.
 
 ## Transport and ownership
 
@@ -13,9 +13,9 @@ The legacy `007d`, `00a6` and `0070` configuration protocols use USB Class contr
 | `wValue` | Block selector | Block selector |
 | `wIndex` | `0x3303` | `0x3303` |
 
-Wave Link's `0x3300` addresses interface 0, owned by Linux's `snd-usb-audio`. The legacy profiles use `0x3303`, retaining the protocol's `0x33` prefix while targeting interface 3. OpenWave does not detach the audio driver for these transfers. The `00c7` Dock uses the separate vendor protocol below; neither dialect is a guarantee that arbitrary transfers cannot disrupt hardware.
+Wave Link's `0x3300` addresses interface 0, owned by Linux's `snd-usb-audio`. The legacy profiles use `0x3303`, retaining the protocol's `0x33` prefix while targeting interface 3. CadisWave does not detach the audio driver for these transfers. The `00c7` Dock uses the separate vendor protocol below; neither dialect is a guarantee that arbitrary transfers cannot disrupt hardware.
 
-Only one process should own vendor transfers to a unit. A competing GUI, diagnostic collector or probe can produce `-EIO`/read failures. Quit OpenWave **including its tray process** before probing or using diagnostics with `--device`. Native vendor-control clients acquire `Lease::vendor_control`; the lease does not make an unrelated third-party client safe to run concurrently. Within the runtime, `DeviceManager` gives each captured `UnitId` a serialized queue for polling and writes. Selection changes cannot retarget queued work, and retirement drains the queue before disconnect. This ownership must not be bypassed by another USB client.
+Only one process should own vendor transfers to a unit. A competing GUI, diagnostic collector or probe can produce `-EIO`/read failures. Quit CadisWave **including its tray process** before probing or using diagnostics with `--device`. Native vendor-control clients acquire `Lease::vendor_control`; the lease does not make an unrelated third-party client safe to run concurrently. Within the runtime, `DeviceManager` gives each captured `UnitId` a serialized queue for polling and writes. Selection changes cannot retarget queued work, and retirement drains the queue before disconnect. This ownership must not be bypassed by another USB client.
 
 Writes are whole-block read-modify-write operations: read the profile's config, patch a supported field, write the block. Preserve all other bytes. No offset is safe merely because a similarly named product uses it.
 
@@ -58,7 +58,7 @@ No phantom or low-impedance offset is defined for Wave:3. All unlisted bytes rem
 
 ### XLR Dock MK.2: `0fd9:00c7`
 
-Protocol evidence comes from OpenXLR's [hardware report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393), [documented bank variants](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and [MK.2 protocol implementation](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/src/OpenXLR.Core/Devices/WaveXlrMk2Device.cs). OpenWave independently implements those wire facts; no upstream implementation code is included.
+Protocol evidence comes from OpenXLR's [hardware report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393), [documented bank variants](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and [MK.2 protocol implementation](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/src/OpenXLR.Core/Devices/WaveXlrMk2Device.cs). CadisWave independently implements those wire facts; no upstream implementation code is included.
 
 Reads use `bmRequestType=0xC1`, writes use `0x41`, and both use `bRequest=0x01`. The `wValue` selects a block; `wIndex` is the bank. Only vendor interface 3 is claimed, without driver detach, alternate-setting changes or device reset.
 
@@ -74,17 +74,17 @@ Production controls read all three blocks, preserve every unmodified byte/bit, a
 
 The serial comes from the USB string descriptor. Firmware/API versions and vendor meter layouts are not mapped; USB `bcdDevice` is not presented as a firmware version. UI metering still uses PCM. There is no physical knob. Unexposed onboard DSP flags remain unchanged by ordinary controls, and scenes never request phantom power.
 
-OpenWave's native implementation has passed device-free protocol, transport and GTK checks; it has not been physically exercised on a `00c7` unit here. Upstream records hardware verification at `0x0103`, with `0x0203` compatibility owner-reported.
+CadisWave's native implementation has passed device-free protocol, transport and GTK checks; it has not been physically exercised on a `00c7` unit here. Upstream records hardware verification at `0x0103`, with `0x0203` compatibility owner-reported.
 
 ## Engineer-only probe
 
-Use the native [`openwave-probe`](../crates/openwave-runtime/src/probe.rs) executable with dependencies and USB permissions already configured. From a source checkout, first build the sibling executables with `cargo build --locked --workspace --bins`, then use `target/debug/openwave-probe` in place of `openwave-probe` below. The probe has no per-unit selection flag: it connects to the first supported unit in bus/address order. **Use only one connected supported unit when investigating a specific device**, and verify the printed model, VID:PID and bus/address before proceeding. Do not use it as a multi-device control interface.
+Use the native [`cadiswave-probe`](../crates/cadiswave-runtime/src/probe.rs) executable with dependencies and USB permissions already configured. From a source checkout, first build the sibling executables with `cargo build --locked --workspace --bins`, then use `target/debug/cadiswave-probe` in place of `cadiswave-probe` below. The probe has no per-unit selection flag: it connects to the first supported unit in bus/address order. **Use only one connected supported unit when investigating a specific device**, and verify the printed model, VID:PID and bus/address before proceeding. Do not use it as a multi-device control interface.
 
 Read-oriented commands:
 
 ```sh
-openwave-probe dump
-openwave-probe watch --interval 0.1
+cadiswave-probe dump
+cadiswave-probe watch --interval 0.1
 ```
 
 `dump` reports expected versus returned lengths for config/meter/device-info blocks. `watch` prints changed byte offsets while you move one physical control at a time; Ctrl+C stops it. Dumps can contain serials and are not privacy-redacted. Custom `dump --wvalue 0xN --len N` requests are protocol research, not a general device-health check.

@@ -53,24 +53,24 @@ jobs:
       - name: Exercise native behavior
         run: cargo test --locked --workspace
       - name: Verify missing-file RPM ownership against a private database
-        run: cargo test --locked -p openwave-runtime --lib installation::package_query_tests::real_rpm_database_preserves_missing_file_ownership -- --ignored --exact
+        run: cargo test --locked -p cadiswave-runtime --lib installation::package_query_tests::real_rpm_database_preserves_missing_file_ownership -- --ignored --exact
       - name: Build actual installed application and smoke drivers
         run: |
           cargo build --release --locked --workspace --bins
-          cargo build --release --locked -p openwave-runtime --examples
-          cargo test --locked -p openwave-desktop --lib --no-run --message-format=json > "$RUNNER_TEMP/gtk-tests.jsonl"
-          make install DESTDIR="$RUNNER_TEMP/openwave-stage" PREFIX=/usr INSTALL_METHOD=manual
+          cargo build --release --locked -p cadiswave-runtime --examples
+          cargo test --locked -p cadiswave-desktop --lib --no-run --message-format=json > "$RUNNER_TEMP/gtk-tests.jsonl"
+          make install DESTDIR="$RUNNER_TEMP/cadiswave-stage" PREFIX=/usr INSTALL_METHOD=manual
       - name: Exercise installed app in isolated device-free audio and GTK session
         run: |
-          gtk_tests=$(jq -er 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "openwave_desktop") | .executable' "$RUNNER_TEMP/gtk-tests.jsonl")
-          bash packaging/smoke-install.sh --stage "$RUNNER_TEMP/openwave-stage" \
+          gtk_tests=$(jq -er 'select(.reason == "compiler-artifact" and .profile.test and .target.name == "cadiswave_desktop") | .executable' "$RUNNER_TEMP/gtk-tests.jsonl")
+          bash packaging/smoke-install.sh --stage "$RUNNER_TEMP/cadiswave-stage" \
             --output-dir "$RUNNER_TEMP/smoke-evidence" \
             --driver "$GITHUB_WORKSPACE/target/release/examples/smoke-control" \
             --gtk-tests "$gtk_tests"
       - name: Validate installed desktop and AppStream metadata
         run: |
-          desktop-file-validate "$RUNNER_TEMP/openwave-stage/usr/share/applications/openwave.desktop"
-          appstreamcli validate --no-net "$RUNNER_TEMP/openwave-stage/usr/share/metainfo/com.github.openwave.metainfo.xml"
+          desktop-file-validate "$RUNNER_TEMP/cadiswave-stage/usr/share/applications/cadiswave.desktop"
+          appstreamcli validate --no-net "$RUNNER_TEMP/cadiswave-stage/usr/share/metainfo/io.github.RamaAditya49.CadisWave.metainfo.xml"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

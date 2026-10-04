@@ -67,10 +67,10 @@ mkdir /work
 # absolute names before allowing extraction, even after checksum verification.
 tar -tzf /input/source.tar.gz > /tmp/members
 while IFS= read -r member; do
-    [[ "$member" == openwave-*/* && "$member" != /* && "/$member/" != *'/../'* ]] || exit 2
+    [[ "$member" == cadiswave-*/* && "$member" != /* && "/$member/" != *'/../'* ]] || exit 2
 done < /tmp/members
 tar --no-same-owner --no-same-permissions -xzf /input/source.tar.gz -C /work
-roots=(/work/openwave-*)
+roots=(/work/cadiswave-*)
 [[ ${#roots[@]} == 1 && -d "${roots[0]}" ]]
 SRC=${roots[0]}
 V=$(cat "$SRC/VERSION")
@@ -78,7 +78,7 @@ V=$(cat "$SRC/VERSION")
 if [[ "$DISTRO" == fedora43 ]]; then
     # Ask the actual spec for BuildRequires, rather than assuming compiler-only
     # dependencies suffice; repository package versions are recorded below.
-    dnf builddep -y --define "openwave_version $V" --define 'dist .fc43' "$SRC/packaging/rpm/openwave.spec"
+    dnf builddep -y --define "cadiswave_version $V" --define 'dist .fc43' "$SRC/packaging/rpm/cadiswave.spec"
     rpm -qa --qf '%{NAME} %{VERSION}-%{RELEASE}.%{ARCH}\n' | sort > /tmp/build-packages.txt
 else
     dpkg-query -W -f='${binary:Package} ${Version}\n' | sort > /tmp/build-packages.txt
@@ -89,18 +89,18 @@ runuser -u builder -- env PATH="$PATH" DISTRO="$DISTRO" ARCH="$ARCH" SRC="$SRC" 
     CARGO_HOME=/home/builder/.cargo CARGO_NET_OFFLINE=true RUSTFLAGS='' bash -s <<'BUILD'
 set -euo pipefail
 cd "$SRC"
-cargo build --release --frozen --offline -p openwave-runtime --bin openwave-maintenance
-HELPER="$SRC/target/release/openwave-maintenance"
+cargo build --release --frozen --offline -p cadiswave-runtime --bin cadiswave-maintenance
+HELPER="$SRC/target/release/cadiswave-maintenance"
 V=$("$HELPER" version --file VERSION)
-[[ "${SRC##*/}" == "openwave-$V" ]]
+[[ "${SRC##*/}" == "cadiswave-$V" ]]
 mkdir -p /work/artifacts
 if [[ "$DISTRO" == fedora43 ]]; then
     RPMROOT=/work/rpmbuild
     mkdir -p "$RPMROOT/SOURCES"
-    cp /input/source.tar.gz "$RPMROOT/SOURCES/openwave-$V.tar.gz"
-    rpmbuild --define "_topdir $RPMROOT" --define "openwave_version $V" \
-        --define 'dist .fc43' -bb packaging/rpm/openwave.spec
-    package="$RPMROOT/RPMS/$ARCH/openwave-$V-1.fc43.$ARCH.rpm"
+    cp /input/source.tar.gz "$RPMROOT/SOURCES/cadiswave-$V.tar.gz"
+    rpmbuild --define "_topdir $RPMROOT" --define "cadiswave_version $V" \
+        --define 'dist .fc43' -bb packaging/rpm/cadiswave.spec
+    package="$RPMROOT/RPMS/$ARCH/cadiswave-$V-1.fc43.$ARCH.rpm"
     [[ -f "$package" && ! -L "$package" ]]
     cp "$package" /work/artifacts/
 else
@@ -111,28 +111,28 @@ else
     mkdir -p "$STAGE/DEBIAN" debian
     # dpkg-shlibdeps needs source package context, and examines every ELF rather
     # than relying on a handwritten list of ABI library names.
-    printf 'Source: openwave\nSection: sound\nPriority: optional\nMaintainer: rikkichy <rikkichy@users.noreply.github.com>\n\nPackage: openwave\nArchitecture: any\nDescription: OpenWave\n' > debian/control
-    SHLIBS=$(dpkg-shlibdeps -O -e"$STAGE/usr/bin/openwave" \
-        -e"$STAGE/usr/bin/openwave-daemon" -e"$STAGE/usr/bin/openwave-diag" \
-        -e"$STAGE/usr/bin/openwave-probe" -e"$STAGE/usr/libexec/openwave-maintenance")
+    printf 'Source: cadiswave\nSection: sound\nPriority: optional\nMaintainer: CADIS <agent@cadis.digital>\n\nPackage: cadiswave\nArchitecture: any\nDescription: CadisWave\n' > debian/control
+    SHLIBS=$(dpkg-shlibdeps -O -e"$STAGE/usr/bin/cadiswave" \
+        -e"$STAGE/usr/bin/cadiswave-daemon" -e"$STAGE/usr/bin/cadiswave-diag" \
+        -e"$STAGE/usr/bin/cadiswave-probe" -e"$STAGE/usr/libexec/cadiswave-maintenance")
     [[ "$SHLIBS" == shlibs:Depends=* ]]
     DEBARCH=$(dpkg --print-architecture)
     [[ "$DEBARCH" == amd64 ]] || { printf '%s\n' 'the supported Debian release architecture is amd64' >&2; exit 2; }
     cat > "$STAGE/DEBIAN/control" <<CONTROL
-Package: openwave
+Package: cadiswave
 Version: $V-1$DISTRO
 Section: sound
 Priority: optional
 Architecture: $DEBARCH
 Depends: ${SHLIBS#shlibs:Depends=}, adwaita-icon-theme, pipewire, pipewire-bin, wireplumber, alsa-utils, pulseaudio-utils, swh-plugins, pkexec
-Maintainer: rikkichy <rikkichy@users.noreply.github.com>
-Homepage: https://github.com/rikkichy/openwave
+Maintainer: CADIS <agent@cadis.digital>
+Homepage: https://github.com/RamaAditya49/cadiswave
 Description: Elgato Wave control panel and PipeWire mixing matrix
  Route application and device sources to independent mixes and outputs.
 CONTROL
-    desktop-file-validate "$STAGE/usr/share/applications/openwave.desktop"
-    appstreamcli validate --no-net "$STAGE/usr/share/metainfo/com.github.openwave.metainfo.xml"
-    dpkg-deb --build --root-owner-group "$STAGE" "/work/artifacts/openwave_${V}-1${DISTRO}_${DEBARCH}.deb"
+    desktop-file-validate "$STAGE/usr/share/applications/cadiswave.desktop"
+    appstreamcli validate --no-net "$STAGE/usr/share/metainfo/io.github.RamaAditya49.CadisWave.metainfo.xml"
+    dpkg-deb --build --root-owner-group "$STAGE" "/work/artifacts/cadiswave_${V}-1${DISTRO}_${DEBARCH}.deb"
 fi
 BUILD
 cp /tmp/build-packages.txt "/work/artifacts/build-packages-$DISTRO-$ARCH.txt"

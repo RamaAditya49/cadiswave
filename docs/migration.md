@@ -14,3 +14,19 @@ The native application replaces active Python packaging.
 Automatic disruptive recovery requires an explicit setting.
 Normal startup must not restart the audio server or cycle unrelated device profiles.
 Keep legacy configuration intact until validated import succeeds.
+
+## Optional state import
+
+Run `cadiswave-maintenance import-legacy --source "$HOME/.config/openwave" --destination "$HOME/.config/cadiswave"`.
+The importer validates known JSON schemas and retains source files.
+Existing destination files remain unchanged.
+Linked ancestry and changed source files prevent import.
+
+## Legacy ownership
+
+CadisWave checks both application bus names before opening vendor controls.
+It retains the legacy native vendor lease during device access.
+An active Python `openwave.service` prevents vendor access.
+Stop that service only after preparing a verified CadisWave installation.
+The native capture service owns capture streams.
+The desktop runtime owns hardware synchronization while the application runs, including its tray state.

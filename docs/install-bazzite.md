@@ -1,6 +1,6 @@
 # Bazzite and Fedora Atomic installation
 
-Run OpenWave on the **host** so it uses the host's PipeWire session, ALSA cards and USB permissions. A native checkout or user-prefix installation avoids modifying the immutable `/usr` image. This guidance also applies to Silverblue/Kinoite-style systems, but is not a claim of a completed build or hardware test on each image.
+Run CadisWave on the **host** so it uses the host's PipeWire session, ALSA cards and USB permissions. A native checkout or user-prefix installation avoids modifying the immutable `/usr` image. This guidance also applies to Silverblue/Kinoite-style systems, but is not a claim of a completed build or hardware test on each image.
 
 ## Native host route
 
@@ -24,29 +24,29 @@ Reboot into the updated deployment when required. On images that do not support 
 Install [Rustup](https://rustup.rs/) for your ordinary user, then clone, build and launch on the host:
 
 ```sh
-git clone https://github.com/rikkichy/openwave.git "$HOME/openwave"
-cd "$HOME/openwave"
+git clone https://github.com/rikkichy/openwave.git "$HOME/cadiswave"
+cd "$HOME/cadiswave"
 rustup toolchain install 1.98.1 --profile minimal
 cargo build --locked --workspace --bins
-./target/debug/openwave
+./target/debug/cadiswave
 ```
 
 The checkout pins Rust **1.98.1** and locked crate dependencies. Build all workspace binaries: source runs require the sibling private maintenance helper, daemon and checkout assets, not just the GUI executable. Keep the checkout and build directory at those paths while launchers or the service refer to them. Alternatively, with dependencies present, install into your home as the login user:
 
 ```sh
 make install PREFIX="$HOME/.local"
-"$HOME/.local/bin/openwave"
+"$HOME/.local/bin/cadiswave"
 ```
 
-The public binaries live in `<prefix>/bin`, the private maintenance helper in `<prefix>/libexec`, and assets plus the hashed installation receipt in `<prefix>/share/openwave`. Add `~/.local/bin` to your session's PATH if needed. Do not use `sudo make install` or elevate a helper from your checkout/home directory.
+The public binaries live in `<prefix>/bin`, the private maintenance helper in `<prefix>/libexec`, and assets plus the hashed installation receipt in `<prefix>/share/cadiswave`. Add `~/.local/bin` to your session's PATH if needed. Do not use `sudo make install` or elevate a helper from your checkout/home directory.
 
-Use **Application menu → Uninstall OpenWave…** or `"$HOME/.local/bin/openwave" --uninstall` to inspect and confirm removal of a manual user-prefix installation and eligible owned integration without a checkout. `--dry-run` only inspects; `--yes` supplies explicit noninteractive confirmation. Settings/scenes are preserved unless separately selected; package-managed files and declarative configuration stay with their manager. Changed recorded files, unrecorded siblings and symlink boundaries are not blindly deleted. If removal is interrupted, retain its recovery bundle and use the exact printed retry command. `make uninstall` is only confirmed application-files removal, not service/settings cleanup; see [uninstall options](../README.md#uninstall).
+Use **Application menu → Uninstall CadisWave…** or `"$HOME/.local/bin/cadiswave" --uninstall` to inspect and confirm removal of a manual user-prefix installation and eligible owned integration without a checkout. `--dry-run` only inspects; `--yes` supplies explicit noninteractive confirmation. Settings/scenes are preserved unless separately selected; package-managed files and declarative configuration stay with their manager. Changed recorded files, unrecorded siblings and symlink boundaries are not blindly deleted. If removal is interrupted, retain its recovery bundle and use the exact printed retry command. `make uninstall` is only confirmed application-files removal, not service/settings cleanup; see [uninstall options](../README.md#uninstall).
 
 ## First-run host integration
 
 Prepare USB permissions through your administrator **before** using native setup from a checkout or user prefix. Its helper is user-owned and cannot safely be elevated; the GUI's privileged USB installer is available only with a trusted root-owned native installation. Do not copy a user-writable helper into a privileged command line to bypass this check.
 
-For the enabled profiles, OpenWave's supplied policy is `/etc/udev/rules.d/99-openwave.rules` with:
+For the enabled profiles, CadisWave's supplied policy is `/etc/udev/rules.d/99-cadiswave.rules` with:
 
 ```udev
 SUBSYSTEM=="usb", ATTR{idVendor}=="0fd9", ATTR{idProduct}=="007d", MODE="0666"
@@ -59,7 +59,7 @@ SUBSYSTEM=="usb", ATTR{idVendor}=="0fd9", ATTR{idProduct}=="00c7", MODE="0666"
 
 The native GUI can then configure user integration; review it before applying changes:
 
-- The capture daemon is a **user** service (`openwave.service` on systemd), not a root audio process. Its unit lives under `~/.config/systemd/user`.
+- The capture daemon is a **user** service (`cadiswave.service` on systemd), not a root audio process. Its unit lives under `~/.config/systemd/user`.
 - WirePlumber/PipeWire configuration is per-user host configuration. Setup writes it for the next relevant audio-service start and does not restart host PipeWire/WirePlumber. Plan any restart yourself outside recordings or calls.
 - Login/tray preferences are managed in the application. Close the tray process too before vendor-level diagnostics or probing.
 
@@ -67,9 +67,9 @@ Health remedies remain disabled unless the daemon is explicitly started with `--
 
 ## Experimental Flatpak boundary
 
-The [manifest](../packaging/flatpak/com.github.openwave.yml) packages the native panel, routing tools and DSP dependencies for GNOME Platform/SDK **50** with Rust **1.98.1**. The [build entrypoint](../packaging/flatpak/build.sh) consumes a prepared vendored release archive and its SHA-256, requires a native `x86_64` builder, and writes into an empty output directory using a private Flatpak installation. A bare checkout is not the offline release input.
+The [manifest](../packaging/flatpak/io.github.RamaAditya49.CadisWave.yml) packages the native panel, routing tools and DSP dependencies for GNOME Platform/SDK **50** with Rust **1.98.1**. The [build entrypoint](../packaging/flatpak/build.sh) consumes a prepared vendored release archive and its SHA-256, requires a native `x86_64` builder, and writes into an empty output directory using a private Flatpak installation. A bare checkout is not the offline release input.
 
-This is an experimental packaging route, not a promise of a published or validated Flatpak artifact. ARM is outside the release target; physical-device acceptance must not be inferred from a manifest or package build. An installed artifact is launched with `flatpak run com.github.openwave`.
+This is an experimental packaging route, not a promise of a published or validated Flatpak artifact. ARM is outside the release target; physical-device acceptance must not be inferred from a manifest or package build. An installed artifact is launched with `flatpak run io.github.RamaAditya49.CadisWave`.
 
 The sandbox can access the allowed audio sockets and raw devices, but **cannot perform host setup**. It does not install host udev rules, host capture services or host audio configuration, and does not restart host PipeWire/WirePlumber. Do not grant blanket home/system access, host command execution or privilege escalation just to bypass this boundary.
 

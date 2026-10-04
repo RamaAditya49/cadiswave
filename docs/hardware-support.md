@@ -1,6 +1,6 @@
 # Hardware support
 
-OpenWave enables exact VID:PID profiles, not a family-wide match on the word “Wave”. All listed USB IDs use Elgato vendor ID `0fd9`. The native authority is [`openwave_core::profiles::PROFILES`](../crates/openwave-core/src/profiles.rs), selected by `profile_for_usb`; unsupported IDs have no production protocol profile.
+CadisWave enables exact VID:PID profiles, not a family-wide match on the word “Wave”. All listed USB IDs use Elgato vendor ID `0fd9`. The native authority is [`cadiswave_core::profiles::PROFILES`](../crates/cadiswave-core/src/profiles.rs), selected by `profile_for_usb`; unsupported IDs have no production protocol profile.
 
 | Product / variant | PID | Software scope |
 |---|---|---|
@@ -10,7 +10,7 @@ OpenWave enables exact VID:PID profiles, not a family-wide match on the word “
 | XLR Dock MK.2 | `00c7` | Enabled three-block vendor protocol; read-only `0103` / `0203` bank detection |
 | Any other PID, including `00b6` | Other | Not enabled by these profiles |
 
-“Enabled” means the implementation contains that exact profile, not that every firmware or multi-unit configuration has passed physical acceptance testing. The `00c7` implementation follows [OpenXLR's recorded hardware findings](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and its author's [Dock verification report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393). Those are upstream hardware results, not physical certification of this native backend. OpenWave's checks here use protocol fixtures and an actual device-free GTK surface. No physical `00c7` run was performed.
+“Enabled” means the implementation contains that exact profile, not that every firmware or multi-unit configuration has passed physical acceptance testing. The `00c7` implementation follows [OpenXLR's recorded hardware findings](https://github.com/emaspa/openxlr/blob/03bdae51b47fd01b599230957537474ec66b7cc9/docs/hardware-support.md) and its author's [Dock verification report](https://github.com/emaspa/openxlr/issues/1#issuecomment-5549540393). Those are upstream hardware results, not physical certification of this native backend. CadisWave's checks here use protocol fixtures and an actual device-free GTK surface. No physical `00c7` run was performed.
 
 ## Controls
 
@@ -24,11 +24,11 @@ OpenWave enables exact VID:PID profiles, not a family-wide match on the word “
 | Microphone/PC monitor mix | No | Yes, 0–100% | Yes, 0–200 raw (0 = mic, 200 = PC) |
 | Knob mode, firmware/API/serial, meters | Profile-defined | Profile-defined | No physical knob; USB descriptor serial; firmware/API unavailable; PCM meters |
 
-Controls absent from a profile are hidden, not emulated. Profile capabilities also govern ALSA synchronization; ALSA control names/ranges are discovered instead of assuming fixed numeric control IDs. [`openwave_core::protocol`](../crates/openwave-core/src/protocol.rs) validates profile fields and exact identity matches; [`openwave_runtime::device`](../crates/openwave-runtime/src/device.rs) owns USB access and ALSA synchronization.
+Controls absent from a profile are hidden, not emulated. Profile capabilities also govern ALSA synchronization; ALSA control names/ranges are discovered instead of assuming fixed numeric control IDs. [`cadiswave_core::protocol`](../crates/cadiswave-core/src/protocol.rs) validates profile fields and exact identity matches; [`cadiswave_runtime::device`](../crates/cadiswave-runtime/src/device.rs) owns USB access and ALSA synchronization.
 
-The Dock's known banks are tested using reads of all three documented blocks. A stall or short block allows trying the other bank; disconnects and timeouts do not. A transient USB I/O read failure is retried once on the same bank, based on upstream streaming observations. If neither bank returns every complete block, connection fails without enabling writes. The chosen bank stays fixed until disconnect. Only explicitly changed blocks are written, preserving unrelated DSP flags and reserved bytes. Dock controls use the vendor protocol directly; OpenWave does not apply the legacy ALSA mirror scales to this UAC2 device.
+The Dock's known banks are tested using reads of all three documented blocks. A stall or short block allows trying the other bank; disconnects and timeouts do not. A transient USB I/O read failure is retried once on the same bank, based on upstream streaming observations. If neither bank returns every complete block, connection fails without enabling writes. The chosen bank stays fixed until disconnect. Only explicitly changed blocks are written, preserving unrelated DSP flags and reserved bytes. Dock controls use the vendor protocol directly; CadisWave does not apply the legacy ALSA mirror scales to this UAC2 device.
 
-Onboard DSP/EQ controls are not exposed by this addition. Existing OpenWave source effects remain host-side PipeWire processing. Firmware/API offsets and vendor meter blocks for `00c7` are not assumed from another model.
+Onboard DSP/EQ controls are not exposed by this addition. Existing CadisWave source effects remain host-side PipeWire processing. Firmware/API offsets and vendor meter blocks for `00c7` are not assumed from another model.
 
 **48 V is a real hardware write.** Verify the selected unit, cable and microphone manufacturer's instructions before enabling it. Some microphones and connected equipment must not receive phantom power. Reduce monitoring levels before changing power or connecting equipment. A scene deliberately cannot toggle phantom power. Do not use raw probe writes to bypass these precautions.
 
@@ -48,4 +48,4 @@ Capture source rows bind to their selected PipeWire node names. Two units of the
 
 Include the USB VID:PID, reported product name, firmware if known, kernel and PipeWire versions, and the symptom. Start with [privacy-reduced diagnostics](troubleshooting.md#diagnostics-and-privacy). Do not add an unverified PID to udev/profile lists just to make the application connect, and do not probe unknown offsets as routine troubleshooting.
 
-Engineers can consult the [protocol reference](protocol.md#engineer-only-probe) and native [`openwave_runtime::probe`](../crates/openwave-runtime/src/probe.rs) for transport details and the limitations of the single-device probe. It selects the first supported unit in bus/address order, not a user-specified unit. Close every vendor-control client before any explicit USB diagnostic read, and connect only one supported unit when investigating a specific target.
+Engineers can consult the [protocol reference](protocol.md#engineer-only-probe) and native [`cadiswave_runtime::probe`](../crates/cadiswave-runtime/src/probe.rs) for transport details and the limitations of the single-device probe. It selects the first supported unit in bus/address order, not a user-specified unit. Close every vendor-control client before any explicit USB diagnostic read, and connect only one supported unit when investigating a specific target.

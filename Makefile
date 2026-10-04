@@ -11,17 +11,17 @@ DESTDIR_ARGS = $(if $(strip $(DESTDIR)),--destdir "$(DESTDIR)")
 BINDIR = $(DESTDIR)$(PREFIX)/bin
 LIBEXECDIR = $(DESTDIR)$(PREFIX)/libexec
 DATADIR = $(DESTDIR)$(PREFIX)/share
-APPDIR = $(DATADIR)/openwave
+APPDIR = $(DATADIR)/cadiswave
 DESKTOPDIR = $(DATADIR)/applications
-DOCDIR = $(DATADIR)/doc/openwave
-LICENSEDIR = $(DATADIR)/licenses/openwave
-PUBLIC_BINARIES = openwave openwave-daemon openwave-diag openwave-probe
-BINARIES = $(PUBLIC_BINARIES) openwave-maintenance
+DOCDIR = $(DATADIR)/doc/cadiswave
+LICENSEDIR = $(DATADIR)/licenses/cadiswave
+PUBLIC_BINARIES = cadiswave cadiswave-daemon cadiswave-diag cadiswave-probe
+BINARIES = $(PUBLIC_BINARIES) cadiswave-maintenance
 DOCS = ARCHITECTURE.md hardware-support.md install-bazzite.md protocol.md troubleshooting.md
-ASSETS = wavexlr.desktop openwave-autostart.desktop VERSION data/style.css \
-	wireplumber/51-openwave-wave-xlr.conf pipewire/52-openwave-mixes.conf \
-	com.github.openwave.metainfo.xml icons/openwave.svg icons/openwave-white.svg \
-	icons/openwave-black.svg icons/openwave-red.svg README.md \
+ASSETS = cadiswave.desktop cadiswave-autostart.desktop VERSION data/style.css \
+	wireplumber/51-cadiswave-wave-xlr.conf pipewire/52-cadiswave-mixes.conf \
+	io.github.RamaAditya49.CadisWave.metainfo.xml icons/cadiswave.svg icons/cadiswave-white.svg \
+	icons/cadiswave-black.svg icons/cadiswave-red.svg README.md \
 	packaging/asset-attribution.txt LICENSE $(addprefix docs/,$(DOCS))
 
 .PHONY: all build check-toolchain check-install-context check-binaries check-version check-payload install uninstall
@@ -29,7 +29,7 @@ all: build
 
 check-toolchain:
 	@test "$$(id -u)" != 0 || { echo 'Build as an ordinary user; use install.sh as the login user for a privileged manual installation.' >&2; exit 1; }
-	@set -- $$($(RUSTC) --version); test "$$1 $$2" = 'rustc 1.98.1' || { echo 'OpenWave requires Rust 1.98.1.' >&2; exit 1; }
+	@set -- $$($(RUSTC) --version); test "$$1 $$2" = 'rustc 1.98.1' || { echo 'CadisWave requires Rust 1.98.1.' >&2; exit 1; }
 
 build: check-toolchain
 	CARGO_TARGET_DIR="$(CARGO_TARGET_DIR)" $(CARGO) build $(CARGO_BUILD_FLAGS)
@@ -51,7 +51,7 @@ check-binaries: check-install-context
 	done
 
 check-version: check-binaries
-	@set -e; version=$$("$(BINARY_DIR)/openwave-maintenance" version --file VERSION); \
+	@set -e; version=$$("$(BINARY_DIR)/cadiswave-maintenance" version --file VERSION); \
 	for binary in $(BINARIES); do \
 		reported=$$("$(BINARY_DIR)/$$binary" --version); \
 		test "$$reported" = "$$binary $$version" || { echo "Compiled version mismatch: $$binary (expected $$version, got $$reported)" >&2; exit 1; }; \
@@ -64,31 +64,31 @@ check-payload: check-version
 
 install: check-payload
 	# This check MUST precede every destination creation or overwrite.
-	"$(BINARY_DIR)/openwave-maintenance" record-install --check --prefix "$(PREFIX)" $(DESTDIR_ARGS) --method "$(INSTALL_METHOD)"
+	"$(BINARY_DIR)/cadiswave-maintenance" record-install --check --prefix "$(PREFIX)" $(DESTDIR_ARGS) --method "$(INSTALL_METHOD)"
 	install -dm755 "$(BINDIR)" "$(LIBEXECDIR)"
 	@set -e; for binary in $(PUBLIC_BINARIES); do install -m755 "$(BINARY_DIR)/$$binary" "$(BINDIR)/$$binary"; done
-	install -m755 "$(BINARY_DIR)/openwave-maintenance" "$(LIBEXECDIR)/openwave-maintenance"
-	install -Dm644 wavexlr.desktop "$(DESKTOPDIR)/openwave.desktop"
-	install -Dm644 openwave-autostart.desktop "$(APPDIR)/openwave-autostart.desktop"
-	install -Dm644 wireplumber/51-openwave-wave-xlr.conf "$(APPDIR)/wireplumber/51-openwave-wave-xlr.conf"
-	install -Dm644 pipewire/52-openwave-mixes.conf "$(APPDIR)/pipewire/52-openwave-mixes.conf"
+	install -m755 "$(BINARY_DIR)/cadiswave-maintenance" "$(LIBEXECDIR)/cadiswave-maintenance"
+	install -Dm644 cadiswave.desktop "$(DESKTOPDIR)/cadiswave.desktop"
+	install -Dm644 cadiswave-autostart.desktop "$(APPDIR)/cadiswave-autostart.desktop"
+	install -Dm644 wireplumber/51-cadiswave-wave-xlr.conf "$(APPDIR)/wireplumber/51-cadiswave-wave-xlr.conf"
+	install -Dm644 pipewire/52-cadiswave-mixes.conf "$(APPDIR)/pipewire/52-cadiswave-mixes.conf"
 	install -Dm644 VERSION "$(APPDIR)/VERSION"
 	install -Dm644 data/style.css "$(APPDIR)/style.css"
-	install -Dm644 com.github.openwave.metainfo.xml "$(DATADIR)/metainfo/com.github.openwave.metainfo.xml"
-	install -Dm644 icons/openwave.svg "$(DATADIR)/icons/hicolor/scalable/apps/openwave.svg"
+	install -Dm644 io.github.RamaAditya49.CadisWave.metainfo.xml "$(DATADIR)/metainfo/io.github.RamaAditya49.CadisWave.metainfo.xml"
+	install -Dm644 icons/cadiswave.svg "$(DATADIR)/icons/hicolor/scalable/apps/cadiswave.svg"
 	install -dm755 "$(DATADIR)/icons/hicolor/scalable/status" "$(APPDIR)/icons"
-	install -m644 icons/openwave-white.svg icons/openwave-black.svg icons/openwave-red.svg "$(DATADIR)/icons/hicolor/scalable/status/"
-	install -m644 icons/openwave.svg icons/openwave-white.svg icons/openwave-black.svg icons/openwave-red.svg "$(APPDIR)/icons/"
+	install -m644 icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(DATADIR)/icons/hicolor/scalable/status/"
+	install -m644 icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(APPDIR)/icons/"
 	install -Dm644 README.md "$(DOCDIR)/README.md"
-	install -Dm644 icons/openwave.svg "$(DOCDIR)/icons/openwave.svg"
+	install -Dm644 icons/cadiswave.svg "$(DOCDIR)/icons/cadiswave.svg"
 	@set -e; for doc in $(DOCS); do install -Dm644 "docs/$$doc" "$(DOCDIR)/docs/$$doc"; done
 	install -Dm644 packaging/asset-attribution.txt "$(DOCDIR)/asset-attribution.txt"
 	install -Dm644 LICENSE "$(LICENSEDIR)/LICENSE"
-	"$(BINARY_DIR)/openwave-maintenance" record-install --prefix "$(PREFIX)" $(DESTDIR_ARGS) --method "$(INSTALL_METHOD)"
+	"$(BINARY_DIR)/cadiswave-maintenance" record-install --prefix "$(PREFIX)" $(DESTDIR_ARGS) --method "$(INSTALL_METHOD)"
 
 # Explicit application-files-only removal; DESTDIR never addresses live services.
 uninstall:
-	@helper="$(BINARY_DIR)/openwave-maintenance"; \
-	if test ! -x "$$helper"; then helper="$(LIBEXECDIR)/openwave-maintenance"; fi; \
+	@helper="$(BINARY_DIR)/cadiswave-maintenance"; \
+	if test ! -x "$$helper"; then helper="$(LIBEXECDIR)/cadiswave-maintenance"; fi; \
 	test -x "$$helper" || { echo 'A built or installed native maintenance binary is required.' >&2; exit 1; }; \
 	"$$helper" files-only --prefix "$(PREFIX)" $(DESTDIR_ARGS) --yes
