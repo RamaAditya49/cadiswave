@@ -1,4 +1,6 @@
-use cadiswave_core::model::{OperationError, Result};
+use cadiswave_core::model::{
+    AppSnapshot, Lifecycle, OperationError, Result, ServiceState, SetupPhase,
+};
 use cadiswave_runtime::paths::RuntimePaths;
 use std::{
     cell::{Cell, RefCell},
@@ -6,6 +8,36 @@ use std::{
     path::PathBuf,
     rc::Rc,
 };
+
+/// Errors take priority over mute. Any muted device keeps the red warning.
+pub(crate) fn status_icon(snapshot: &AppSnapshot) -> &'static str {
+    if !snapshot.errors.is_empty()
+        || snapshot.service_state == ServiceState::Failed
+        || matches!(snapshot.lifecycle, Lifecycle::Frozen)
+        || matches!(
+            snapshot.setup_phase,
+            SetupPhase::Failed(_) | SetupPhase::ActivationFailed(_)
+        )
+        || snapshot
+            .units
+            .iter()
+            .any(|unit| !unit.errors.is_empty() || unit.effective_mute().is_none())
+    {
+        "cadiswave-orange"
+    } else if snapshot
+        .units
+        .iter()
+        .any(|unit| unit.effective_mute() == Some(true))
+    {
+        "cadiswave-red"
+    } else if !snapshot.units.is_empty() {
+        "cadiswave-green"
+    } else if snapshot.preferences.tray_icon_color == "black" {
+        "cadiswave-black"
+    } else {
+        "cadiswave-white"
+    }
+}
 
 /// Rendering choices never replace the icon name stored in a source or preference.
 #[derive(Clone)]
@@ -33,6 +65,8 @@ impl Icons {
             "cadiswave-white",
             "cadiswave-black",
             "cadiswave-red",
+            "cadiswave-green",
+            "cadiswave-orange",
         ]
         .into_iter()
         .map(|name| {
@@ -160,5 +194,20 @@ mod tests {
             gtk::Window::default_icon_name().as_deref(),
             Some("cadiswave")
         );
+        for name in ["cadiswave-green", "cadiswave-red", "cadiswave-orange"] {
+            assert!(theme.has_icon(name), "Missing status artwork: {name}");
+            let icon = theme.lookup_icon(
+                name,
+                &[],
+                32,
+                1,
+                gtk::TextDirection::None,
+                gtk::IconLookupFlags::empty(),
+            );
+            assert_eq!(
+                icon.file().unwrap().path().unwrap(),
+                icons.supplied_path(name).unwrap()
+            );
+        }
     }
 }

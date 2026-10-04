@@ -384,7 +384,7 @@ pub const MESSAGES: &[(&str, &str)] = &[
     ("ui-white", "White"),
     (
         "ui-white-for-dark-panels-black-for-light-panels-red-when-muted",
-        "White for dark panels, black for light panels. Red when muted.",
+        "Green when live, red when muted, orange on error. White/black when disconnected.",
     ),
     (
         "ui-your-settings-and-saved-scenes-were-preserved",

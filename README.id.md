@@ -43,6 +43,7 @@ Baca [batas dukungan](#dukungan-perangkat) sebelum beralih.
 | --- | --- |
 | Dashboard perangkat | Baca level input, atur gain, aktifkan mute, dan kontrol headphone. |
 | Kontrol ringkas | Akses kontrol utama dalam jendela kecil. Gunakan tray jika desktop menyediakan tray host. |
+| Ikon status | Hijau saat aktif, merah saat mute, oranye saat error. Integrasi dock tersedia untuk GNOME 46. |
 | Ukuran jendela adaptif | Gunakan ukuran terakhir yang muat di layar saat ini. Kontrol utama menyesuaikan jendela sempit. |
 | Mixer PipeWire | Kelola sumber aplikasi, mix terpisah, output, scene, dan efek software. |
 | Inggris dan Indonesia | Ganti bahasa tanpa memulai ulang audio atau worker USB. |

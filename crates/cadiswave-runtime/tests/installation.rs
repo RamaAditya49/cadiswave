@@ -89,6 +89,62 @@ fn native_stage_records_runtime_paths_and_moves_as_one_tree() {
 }
 
 #[test]
+fn status_asset_upgrade_accepts_the_complete_previous_receipt_only() {
+    let fixture = Native::new();
+    let additions: BTreeSet<_> = NATIVE_PAYLOAD
+        .iter()
+        .filter(|name| {
+            name.contains("/gnome-shell/")
+                || name.ends_with("cadiswave-green.svg")
+                || name.ends_with("cadiswave-orange.svg")
+        })
+        .map(|name| fixture.runtime.join(name))
+        .collect();
+    assert_eq!(additions.len(), 10);
+    fixture.rewrite(|receipt| {
+        receipt["files"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|path| !additions.contains(Path::new(path.as_str().unwrap())));
+        receipt["sha256"]
+            .as_object_mut()
+            .unwrap()
+            .retain(|path, _| !additions.contains(Path::new(path)));
+        receipt["directories"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|path| !path.as_str().unwrap().contains("/gnome-shell/"));
+    });
+    for path in &additions {
+        fs::remove_file(
+            fixture
+                .prefix
+                .join(path.strip_prefix(&fixture.runtime).unwrap()),
+        )
+        .unwrap();
+    }
+    installation::check_install_target(&fixture.runtime, Some(&fixture.stage)).unwrap();
+    assert_eq!(
+        fixture.snapshot().files.len(),
+        NATIVE_PAYLOAD.len() + 1 - additions.len()
+    );
+    fixture.rewrite(|receipt| {
+        let path = fixture
+            .runtime
+            .join("share/cadiswave/icons/cadiswave-red.svg");
+        receipt["files"]
+            .as_array_mut()
+            .unwrap()
+            .retain(|value| value.as_str() != path.to_str());
+        receipt["sha256"]
+            .as_object_mut()
+            .unwrap()
+            .remove(path.to_str().unwrap());
+    });
+    assert!(installation::inspect_prefix(&fixture.prefix, None).is_err());
+}
+
+#[test]
 fn accepted_missing_files_and_receipt_allow_bounded_retry_only() {
     let fixture = Native::new();
     let accepted = fixture.snapshot();

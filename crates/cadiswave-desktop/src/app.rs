@@ -170,6 +170,7 @@ struct AppUi {
     device_settings: crate::ui::device::settings::DeviceSettings,
     compact: crate::ui::device::compact::CompactControls,
     compact_window: adw::Window,
+    status_icon: Cell<Option<&'static str>>,
     connection_notifier: RefCell<crate::ui::device::compact::ConnectionNotifier>,
     event_tail: RefCell<Option<cadiswave_runtime::events::EventTail>>,
     title: adw::WindowTitle,
@@ -386,6 +387,7 @@ impl AppUi {
                 device_page,
                 compact,
                 compact_window,
+                status_icon: Cell::new(None),
                 connection_notifier: RefCell::new(Default::default()),
                 event_tail: RefCell::new(cadiswave_runtime::events::EventTail::start().ok()),
                 title,
@@ -994,6 +996,15 @@ impl AppUi {
         }
     }
     fn refresh(self: &Rc<Self>, snapshot: Arc<AppSnapshot>) {
+        let icon = crate::icons::status_icon(&snapshot);
+        if self.status_icon.replace(Some(icon)) != Some(icon) {
+            for window in [
+                self.window.upcast_ref::<gtk::Window>(),
+                self.compact_window.upcast_ref::<gtk::Window>(),
+            ] {
+                window.set_icon_name(Some(icon));
+            }
+        }
         if let Some(registry) = self.registry.borrow().as_ref() {
             registry.refresh(&snapshot);
         }
@@ -1416,6 +1427,55 @@ mod tests {
     use super::*;
     use crate::ui::test_support::{Rig, descendants};
     use std::time::Instant;
+
+    #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn status_icon_updates_windows_and_read_only_action_without_a_revision_change() {
+        let (_rig, ui) = fixture();
+        let mut snapshot = (*ui.handle.snapshot()).clone();
+        let unit = crate::ui::test_support::unit("status fixture", 1, 0.0);
+        snapshot.selected_unit = Some(unit.id);
+        snapshot.units = Arc::new(vec![unit]);
+        Arc::make_mut(&mut snapshot.units)[0].desired_mute = Some(false);
+        for (mute, failure, expected) in [
+            (false, false, "cadiswave-green"),
+            (true, false, "cadiswave-red"),
+            (true, true, "cadiswave-orange"),
+            (true, false, "cadiswave-red"),
+        ] {
+            Arc::make_mut(&mut snapshot.units)[0].desired_mute = Some(mute);
+            snapshot.errors = Arc::new(if failure {
+                vec![OperationIssue {
+                    target: "fixture".into(),
+                    message: "Effects unavailable".into(),
+                }]
+            } else {
+                vec![]
+            });
+            ui.refresh(Arc::new(snapshot.clone()));
+            assert_eq!(ui.window.icon_name().as_deref(), Some(expected));
+            assert_eq!(ui.compact_window.icon_name().as_deref(), Some(expected));
+            assert_eq!(
+                ui.application
+                    .action_state("status-icon")
+                    .unwrap()
+                    .get::<String>()
+                    .as_deref(),
+                Some(expected)
+            );
+            ui.application
+                .change_action_state("status-icon", &"cadiswave-green".to_variant());
+            assert_eq!(
+                ui.application
+                    .action_state("status-icon")
+                    .unwrap()
+                    .get::<String>()
+                    .as_deref(),
+                Some(expected)
+            );
+        }
+        ui.window.destroy();
+    }
 
     fn assert_main_controls_in_view(ui: &AppUi) {
         let viewport = &ui.device_page.widget;

@@ -10,4 +10,5 @@ Rama selected the Signal C application icon on 2026-10-04.
 The original selected PNG is icons/cadiswave.png.
 The self-contained SVG includes those exact PNG pixels for installed icon themes.
 Small status icons use the same C and waveform motif.
-White and black status icons support panel themes. Red indicates hardware mute.
+White and black status icons support disconnected panel themes.
+Green indicates live devices. Red indicates mute. Orange indicates an error or unavailable mute state.

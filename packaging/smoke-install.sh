@@ -74,7 +74,7 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
         version=$(<"$prefix/share/cadiswave/VERSION")
         [[ $version =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || { echo 'Invalid installed VERSION.' >&2; exit 1; }
         mkdir "$output/archive-proof"
-        for name in VERSION data/style.css icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg; do
+        for name in VERSION data/style.css icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg icons/cadiswave-green.svg icons/cadiswave-orange.svg; do
             mkdir -p "$output/archive-proof/$(dirname "$name")"
             tar -xOf "$archive" "cadiswave-$version/$name" > "$output/archive-proof/$name"
             case $name in data/style.css) installed=style.css;; *) installed=$name;; esac
@@ -272,14 +272,17 @@ for launcher in cadiswave cadiswave-daemon cadiswave-diag cadiswave-probe; do
 done
 sha256sum /installed/bin/cadiswave /installed/bin/cadiswave-daemon /installed/bin/cadiswave-diag /installed/bin/cadiswave-probe /installed/libexec/cadiswave-maintenance /smoke-control > /work/evidence/executed-binaries.sha256
 timeout 15 /installed/bin/cadiswave --uninstall --dry-run > /work/evidence/uninstall-inspection.txt
-for resource in VERSION style.css pipewire/52-cadiswave-mixes.conf wireplumber/51-cadiswave-wave-xlr.conf icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg install-manifest.json; do
+for resource in VERSION style.css pipewire/52-cadiswave-mixes.conf wireplumber/51-cadiswave-wave-xlr.conf icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg icons/cadiswave-green.svg icons/cadiswave-orange.svg install-manifest.json; do
     [[ -s /installed/share/cadiswave/$resource ]] || { echo "Missing installed asset: $resource" >&2; exit 1; }
 done
-for name in cadiswave cadiswave-white cadiswave-black cadiswave-red; do
+for name in cadiswave cadiswave-white cadiswave-black cadiswave-red cadiswave-green cadiswave-orange; do
     context=status; [[ $name != cadiswave ]] || context=apps
     cmp "/installed/share/cadiswave/icons/$name.svg" "/installed/share/icons/hicolor/scalable/$context/$name.svg"
 done
 cmp /installed/share/cadiswave/icons/cadiswave.svg /installed/share/doc/cadiswave/icons/cadiswave.svg
+for resource in extension.js metadata.json cadiswave.svg cadiswave-green.svg cadiswave-red.svg cadiswave-orange.svg; do
+    [[ -s /installed/share/gnome-shell/extensions/cadiswave-status@cadis.digital/$resource ]]
+done
 [[ -x /installed/libexec/cadiswave-maintenance ]]
 /smoke-control fixtures /work/config/cadiswave
 

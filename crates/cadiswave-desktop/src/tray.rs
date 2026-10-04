@@ -105,11 +105,13 @@ struct PresentationInputs {
     selected: Option<UnitId>,
     black: bool,
     writable: bool,
+    icon: &'static str,
 }
 
 impl PresentationInputs {
     fn matches(&self, snapshot: &AppSnapshot) -> bool {
         self.selected == snapshot.selected_unit
+            && self.icon == crate::icons::status_icon(snapshot)
             && self.black == (snapshot.preferences.tray_icon_color == "black")
             && self.writable
                 == matches!(snapshot.lifecycle, Lifecycle::Starting | Lifecycle::Running)
@@ -133,6 +135,7 @@ impl PresentationInputs {
             selected: snapshot.selected_unit,
             black: snapshot.preferences.tray_icon_color == "black",
             writable: matches!(snapshot.lifecycle, Lifecycle::Starting | Lifecycle::Running),
+            icon: crate::icons::status_icon(snapshot),
         }
     }
 }
@@ -147,16 +150,7 @@ impl Presentation {
             .iter()
             .filter(|unit| unit.effective_mute() == Some(true))
             .count();
-        let color = if snapshot.preferences.tray_icon_color == "black" {
-            "black"
-        } else {
-            "white"
-        };
-        let icon = if muted_count > 0 {
-            "cadiswave-red".into()
-        } else {
-            format!("cadiswave-{color}")
-        };
+        let icon = crate::icons::status_icon(snapshot).to_owned();
         let (mut tooltip, label, enabled) = if let Some(unit) = selected {
             let profile = unit.id.profile.profile().display_name;
             let name = if unit.info.serial.is_empty() {
@@ -208,6 +202,10 @@ impl Presentation {
                     "devices are"
                 }
             ));
+        }
+        if icon == "cadiswave-orange" {
+            tooltip.push('\n');
+            tooltip.push_str(&crate::i18n::tr("status-attention-required"));
         }
         Self {
             icon,
@@ -823,5 +821,124 @@ impl Inner {
                 "Invalid menu arguments",
             ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cadiswave_core::model::{Observation, OperationIssue};
+    use std::sync::Arc;
+
+    fn live_snapshot() -> AppSnapshot {
+        let mut unit = crate::ui::test_support::unit("fixture", 1, 0.0);
+        unit.desired_mute = Some(false);
+        AppSnapshot {
+            selected_unit: Some(unit.id),
+            units: Arc::new(vec![unit]),
+            lifecycle: Lifecycle::Running,
+            ..Default::default()
+        }
+    }
+
+    fn error() -> OperationIssue {
+        OperationIssue {
+            target: "fixture".into(),
+            message: "Effects unavailable".into(),
+        }
+    }
+
+    #[test]
+    fn status_colors_follow_mute_errors_and_recovery() {
+        let mut snapshot = live_snapshot();
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-green"
+        );
+        Arc::make_mut(&mut snapshot.units)[0].desired_mute = Some(true);
+        assert_eq!(Presentation::from_snapshot(&snapshot).icon, "cadiswave-red");
+        snapshot.errors = Arc::new(vec![error()]);
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-orange"
+        );
+        snapshot.errors = Arc::default();
+        assert_eq!(Presentation::from_snapshot(&snapshot).icon, "cadiswave-red");
+        Arc::make_mut(&mut snapshot.units)[0].desired_mute = Some(false);
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-green"
+        );
+    }
+
+    #[test]
+    fn device_errors_and_unknown_mute_require_attention() {
+        let mut snapshot = live_snapshot();
+        Arc::make_mut(&mut snapshot.units)[0].errors.push(error());
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-orange"
+        );
+        let unit = &mut Arc::make_mut(&mut snapshot.units)[0];
+        unit.errors.clear();
+        unit.desired_mute = None;
+        unit.state = Observation::Unknown(OperationError::unavailable("Device read failed"));
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-orange"
+        );
+    }
+
+    #[test]
+    fn another_muted_device_keeps_the_red_warning() {
+        let mut snapshot = live_snapshot();
+        let mut other = crate::ui::test_support::unit("other fixture", 2, 0.0);
+        other.desired_mute = Some(true);
+        Arc::make_mut(&mut snapshot.units).push(other);
+        assert_eq!(Presentation::from_snapshot(&snapshot).icon, "cadiswave-red");
+    }
+
+    #[test]
+    fn cached_inputs_observe_errors_but_ignore_meter_updates() {
+        let mut snapshot = live_snapshot();
+        let inputs = PresentationInputs::capture(&snapshot);
+        Arc::make_mut(&mut snapshot.units)[0].input_peak = 0.75;
+        assert!(inputs.matches(&snapshot));
+        snapshot.errors = Arc::new(vec![error()]);
+        assert!(!inputs.matches(&snapshot));
+        let inputs = PresentationInputs::capture(&snapshot);
+        snapshot.errors = Arc::default();
+        assert!(!inputs.matches(&snapshot));
+    }
+
+    #[test]
+    fn capture_service_failure_overrides_live_status() {
+        let mut snapshot = live_snapshot();
+        let inputs = PresentationInputs::capture(&snapshot);
+        snapshot.service_state = cadiswave_core::model::ServiceState::Failed;
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-orange"
+        );
+        assert!(!inputs.matches(&snapshot));
+        snapshot.service_state = cadiswave_core::model::ServiceState::Running;
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-green"
+        );
+    }
+
+    #[test]
+    fn disconnected_status_keeps_the_selected_neutral_color() {
+        let mut snapshot = AppSnapshot::default();
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-white"
+        );
+        Arc::make_mut(&mut snapshot.preferences).tray_icon_color = "black".into();
+        assert_eq!(
+            Presentation::from_snapshot(&snapshot).icon,
+            "cadiswave-black"
+        );
     }
 }

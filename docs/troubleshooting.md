@@ -1,5 +1,20 @@
 # Troubleshooting
 
+## Status icon colors
+
+Green indicates live devices. Red indicates at least one muted device.
+Orange indicates an active error or unavailable device mute state.
+Errors take priority over mute. The color returns to the current device state after recovery.
+White and black apply when no device is connected and no error is active.
+
+The tray updates directly. Window icon support depends on the desktop.
+GNOME 46 and Zorin use the supplied `cadiswave-status@cadis.digital` extension for dock and taskbar colors.
+Enable it with `gnome-extensions enable cadiswave-status@cadis.digital` after installation.
+After the first installation, log out and log in so GNOME can discover the extension.
+If GNOME does not recognize the extension before login, enable it after login.
+The extension changes only CadisWave icons and restores them when disabled.
+Other GNOME versions are not listed as supported until their integration tests pass.
+
 Start with observation, not a PipeWire restart, USB reset or raw register write. A node marked “running” or a live child process is not proof that samples reach hardware. Avoid recovery experiments during recordings, calls or broadcasts.
 
 ## Diagnostics and privacy

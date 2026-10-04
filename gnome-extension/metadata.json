@@ -1,0 +1,8 @@
+{
+  "uuid": "cadiswave-status@cadis.digital",
+  "name": "CadisWave Status Icon",
+  "description": "Show CadisWave mute and error colors in the GNOME dock and taskbar.",
+  "shell-version": ["46"],
+  "version": 1,
+  "url": "https://github.com/RamaAditya49/cadiswave"
+}

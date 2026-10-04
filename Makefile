@@ -21,7 +21,8 @@ DOCS = ARCHITECTURE.md hardware-support.md install-bazzite.md protocol.md troubl
 ASSETS = cadiswave.desktop cadiswave-autostart.desktop VERSION data/style.css \
 	wireplumber/51-cadiswave-wave-xlr.conf pipewire/52-cadiswave-mixes.conf \
 	io.github.RamaAditya49.CadisWave.metainfo.xml icons/cadiswave.svg icons/cadiswave-white.svg \
-	icons/cadiswave-black.svg icons/cadiswave-red.svg README.md README.id.md CONTRIBUTING.md SECURITY.md \
+	icons/cadiswave-black.svg icons/cadiswave-red.svg icons/cadiswave-green.svg icons/cadiswave-orange.svg \
+	gnome-extension/extension.js gnome-extension/metadata.json README.md README.id.md CONTRIBUTING.md SECURITY.md \
 	packaging/asset-attribution.txt LICENSE $(addprefix docs/,$(DOCS))
 
 .PHONY: all build check-toolchain check-install-context check-binaries check-version check-payload install uninstall
@@ -77,8 +78,10 @@ install: check-payload
 	install -Dm644 io.github.RamaAditya49.CadisWave.metainfo.xml "$(DATADIR)/metainfo/io.github.RamaAditya49.CadisWave.metainfo.xml"
 	install -Dm644 icons/cadiswave.svg "$(DATADIR)/icons/hicolor/scalable/apps/cadiswave.svg"
 	install -dm755 "$(DATADIR)/icons/hicolor/scalable/status" "$(APPDIR)/icons"
-	install -m644 icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(DATADIR)/icons/hicolor/scalable/status/"
-	install -m644 icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(APPDIR)/icons/"
+	install -m644 icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg icons/cadiswave-green.svg icons/cadiswave-orange.svg "$(DATADIR)/icons/hicolor/scalable/status/"
+	install -m644 icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg icons/cadiswave-green.svg icons/cadiswave-orange.svg "$(APPDIR)/icons/"
+	install -dm755 "$(DATADIR)/gnome-shell/extensions/cadiswave-status@cadis.digital"
+	install -m644 gnome-extension/metadata.json gnome-extension/extension.js icons/cadiswave.svg icons/cadiswave-green.svg icons/cadiswave-red.svg icons/cadiswave-orange.svg "$(DATADIR)/gnome-shell/extensions/cadiswave-status@cadis.digital/"
 	install -Dm644 README.md "$(DOCDIR)/README.md"
 	install -Dm644 README.id.md "$(DOCDIR)/README.id.md"
 	install -Dm644 CONTRIBUTING.md "$(DOCDIR)/CONTRIBUTING.md"

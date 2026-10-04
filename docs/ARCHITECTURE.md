@@ -150,7 +150,18 @@ The session-bus name is `io.github.RamaAditya49.CadisWave`, object path `/io/git
 | `delete-scene` | `s` | Scene ID |
 | `toggle-fx` | `(ss)` | Source ID, effect key |
 
-Read-only actions have no activation parameter: `source-groups` exposes state type `as` (string array); `snapshot`, `scenes` and `levels` expose state type `s` containing JSON. `snapshot` and `source-groups` push changes from the running window. Activate `scenes` or `levels` to refresh their state before reading. Use `Describe`/`DescribeAll` to inspect states, or subscribe to `Changed` for pushed updates. For example:
+Read-only actions have no activation parameter: `source-groups` exposes state type `as` (string array); `snapshot`, `scenes` and `levels` expose state type `s` containing JSON. `snapshot` and `source-groups` push changes from the running window. Activate `scenes` or `levels` to refresh their state before reading. Use `Describe`/`DescribeAll` to inspect states, or subscribe to `Changed` for pushed updates.
+
+The read-only `status-icon` action publishes the current icon name as a string.
+Its state changes independently of the routing revision. Remote state changes are ignored.
+Active errors and unavailable device mute state use orange. Any muted device uses red; live devices use green.
+Without devices or errors, the tray uses its configured white or black icon.
+Meter updates do not publish another icon change.
+GTK window icons and the tray use this same state rule.
+The optional GNOME 46 extension subscribes to this action for dock and taskbar icons.
+It tracks each application bus owner separately and restores original icons on exit or disable.
+
+For example:
 
 ```sh
 gdbus call --session --dest io.github.RamaAditya49.CadisWave \

@@ -38,10 +38,20 @@ pub const NATIVE_PAYLOAD: &[&str] = &[
     "share/icons/hicolor/scalable/status/cadiswave-white.svg",
     "share/icons/hicolor/scalable/status/cadiswave-black.svg",
     "share/icons/hicolor/scalable/status/cadiswave-red.svg",
+    "share/icons/hicolor/scalable/status/cadiswave-green.svg",
+    "share/icons/hicolor/scalable/status/cadiswave-orange.svg",
     "share/cadiswave/icons/cadiswave.svg",
     "share/cadiswave/icons/cadiswave-white.svg",
     "share/cadiswave/icons/cadiswave-black.svg",
     "share/cadiswave/icons/cadiswave-red.svg",
+    "share/cadiswave/icons/cadiswave-green.svg",
+    "share/cadiswave/icons/cadiswave-orange.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/metadata.json",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/extension.js",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-green.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-red.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-orange.svg",
     "share/doc/cadiswave/README.md",
     "share/doc/cadiswave/README.id.md",
     "share/doc/cadiswave/CONTRIBUTING.md",
@@ -57,6 +67,18 @@ pub const NATIVE_PAYLOAD: &[&str] = &[
     "share/doc/cadiswave/docs/install-bazzite.md",
     "share/doc/cadiswave/docs/protocol.md",
     "share/doc/cadiswave/docs/troubleshooting.md",
+];
+const STATUS_ADDITIONS: &[&str] = &[
+    "share/icons/hicolor/scalable/status/cadiswave-green.svg",
+    "share/icons/hicolor/scalable/status/cadiswave-orange.svg",
+    "share/cadiswave/icons/cadiswave-green.svg",
+    "share/cadiswave/icons/cadiswave-orange.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/metadata.json",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/extension.js",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-green.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-red.svg",
+    "share/gnome-shell/extensions/cadiswave-status@cadis.digital/cadiswave-orange.svg",
 ];
 const HISTORICAL: &[&str] = &[
     "share/icons/hicolor/symbolic/apps/cadiswave-symbolic.svg",
@@ -166,6 +188,16 @@ fn native_files(prefix: &Path) -> Vec<PathBuf> {
     files.sort();
     files
 }
+fn native_files_before_status(prefix: &Path) -> Vec<PathBuf> {
+    let mut files: Vec<_> = NATIVE_PAYLOAD
+        .iter()
+        .filter(|name| !STATUS_ADDITIONS.contains(name))
+        .map(|name| prefix.join(name))
+        .collect();
+    files.push(prefix.join(RECEIPT));
+    files.sort();
+    files
+}
 fn legacy_files(prefix: &Path, module: &Path) -> BTreeSet<PathBuf> {
     NATIVE_PAYLOAD
         .iter()
@@ -191,6 +223,10 @@ fn private_directories(files: &[PathBuf], prefix: &Path, module: Option<&Path>) 
         prefix.join("share/doc/cadiswave"),
         prefix.join("share/licenses/cadiswave"),
     ];
+    let extension = prefix.join("share/gnome-shell/extensions/cadiswave-status@cadis.digital");
+    if files.iter().any(|file| file.starts_with(&extension)) {
+        roots.push(extension);
+    }
     if let Some(module) = module {
         roots.push(module.to_owned());
     }
@@ -249,7 +285,10 @@ fn shape(snapshot: &InstallationSnapshot) -> Result<()> {
         (InstallationFormat::RustV2, None, Some(receipt))
             if receipt == snapshot.prefix.join(RECEIPT) =>
         {
-            if snapshot.files != native_files(&snapshot.prefix) {
+            // Accept both complete generations. Partial inventories remain invalid.
+            if snapshot.files != native_files(&snapshot.prefix)
+                && snapshot.files != native_files_before_status(&snapshot.prefix)
+            {
                 return Err(invalid(
                     "Native inventory differs from the fixed complete payload",
                 ));

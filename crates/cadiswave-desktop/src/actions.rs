@@ -21,6 +21,8 @@ pub struct ActionRegistry {
     groups: gio::SimpleAction,
     mic_test: gio::SimpleAction,
     prepare: gio::SimpleAction,
+    status: gio::SimpleAction,
+    status_icon: Cell<&'static str>,
     revision: Cell<Option<u64>>,
 }
 
@@ -98,11 +100,18 @@ impl ActionRegistry {
             }
         });
         app.add_action(&prepare);
+        let status =
+            gio::SimpleAction::new_stateful("status-icon", None, &"cadiswave-white".to_variant());
+        status.connect_change_state(|_, _| {});
+        status.connect_activate(|_, _| {});
+        app.add_action(&status);
         let registry = Self {
             snapshot,
             groups,
             mic_test,
             prepare,
+            status,
+            status_icon: Cell::new("cadiswave-white"),
             revision: Cell::new(None),
         };
         registry.refresh(&handle.snapshot());
@@ -110,6 +119,10 @@ impl ActionRegistry {
     }
 
     pub fn refresh(&self, snapshot: &AppSnapshot) {
+        let icon = crate::icons::status_icon(snapshot);
+        if self.status_icon.replace(icon) != icon {
+            self.status.set_state(&icon.to_variant());
+        }
         // Audio completion does not change the desired routing revision.
         match snapshot.action_mic_test() {
             Ok(json) => self.mic_test.set_state(&json.to_variant()),

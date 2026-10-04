@@ -43,6 +43,7 @@ See the [feature limits](#device-support) before switching.
 | --- | --- |
 | Device dashboard | Read input levels, adjust gain, toggle mute, and control headphones. |
 | Compact controls | Keep key controls nearby. Use the tray when your desktop provides a tray host. |
+| Status icons | Green when live, red when muted, orange on error. Includes optional GNOME 46 dock integration. |
 | Adaptive window | Restore a size that fits the current monitor. Use compact controls in a narrow layout. |
 | PipeWire mixer | Manage application sources, independent mixes, outputs, scenes, and software effects. |
 | English and Indonesian | Change the interface language without restarting audio or USB workers. |

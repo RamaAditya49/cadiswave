@@ -228,7 +228,9 @@ impl Sidebar {
         let colors = gtk::StringList::new(&["White", "Black"]);
         let tray_color = adw::ComboRow::builder()
             .title("Tray icon color")
-            .subtitle("White for dark panels, black for light panels. Red when muted.")
+            .subtitle(
+                "Green when live, red when muted, orange on error. White/black when disconnected.",
+            )
             .model(&colors)
             .build();
         settings.add(&tray_color);

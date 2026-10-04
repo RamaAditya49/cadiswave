@@ -67,6 +67,9 @@ appstream-util validate-relax --nonet %{buildroot}/usr/share/metainfo/io.github.
 /usr/share/icons/hicolor/scalable/status/cadiswave-white.svg
 /usr/share/icons/hicolor/scalable/status/cadiswave-black.svg
 /usr/share/icons/hicolor/scalable/status/cadiswave-red.svg
+/usr/share/icons/hicolor/scalable/status/cadiswave-green.svg
+/usr/share/icons/hicolor/scalable/status/cadiswave-orange.svg
+/usr/share/gnome-shell/extensions/cadiswave-status@cadis.digital/
 %doc /usr/share/doc/cadiswave/
 %license /usr/share/licenses/cadiswave/
 

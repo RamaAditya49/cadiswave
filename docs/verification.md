@@ -233,6 +233,43 @@ Default input, default output, input mute, input volume, and application configu
 Writable ALSA controls and audio service invocation identities remain unchanged.
 The previous payload, configuration, and library directory mode remain backed up outside Git.
 
+## Status icon colors
+
+The status indicator now uses green for live devices, red for mute, and orange for active errors.
+Errors take priority over mute. Recovery restores the current device color.
+An observed capture service failure also uses orange.
+Unknown device mute state also uses orange. Disconnected devices retain the configured neutral tray color.
+The tray, GTK windows, and read-only `status-icon` action use one state rule.
+Status updates do not require a routing revision change.
+Meter updates retain the current icon without another publication or window property write.
+
+All 495 workspace tests passed; 61 cases were marked ignored.
+The final desktop regression run passed 29 tests, including capture service failure and recovery.
+Two focused private GTK cases passed for window/action state and supplied icon resolution.
+Formatting, workspace lint, and locked release builds passed.
+The complete private installed audio, routing, GTK, and tray smoke passed.
+The installation test accepts the exact previous receipt and rejects partial inventories.
+
+The GNOME 46 integration test runs an actual headless Shell in a private namespace.
+Its application uses synthetic status actions. It has no host audio, display, bus, or USB access.
+The test helper enables evaluation only within that private Shell.
+Real Shell application icons changed through green, red, orange, and recovery.
+Another application's icon remained unchanged. Unknown states retained the original artwork.
+Disable and application exit restored the original CadisWave icon.
+The reusable runner is `packaging/smoke-status-icons.sh`.
+
+The host desktop and capture daemon now run the tested build; executable hashes match the release files.
+The live tray reports `cadiswave-green`, matching the public status action.
+The installation receipt check passed. Existing FX nodes remained present.
+Default input, default output, mute, volume, writable ALSA controls, and application configuration remained unchanged.
+PipeWire, pipewire-pulse, and WirePlumber retained their invocation identities.
+The previous payload and configuration remain backed up outside Git.
+
+The host received the tested GNOME extension assets and an enabled setting for the next login.
+Existing extension preferences remain unchanged. The current GNOME session has not loaded this new extension.
+A first logout and login is still required for host dock activation.
+Private GNOME integration passed; live host dock acceptance remains pending that login.
+
 ## Selected application icon
 
 Rama selected the mint Signal C artwork on 2026-10-04.
