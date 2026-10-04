@@ -137,7 +137,7 @@ fn read_events(buffer: &Mutex<EventBuffer>, cancel: &AtomicBool) -> Result<()> {
                     }
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {
-                    thread::sleep(Duration::from_millis(25))
+                    thread::sleep(Duration::from_millis(100))
                 }
                 Err(e) if e.kind() == ErrorKind::Interrupted => {}
                 Err(e) => return Err(e.into()),

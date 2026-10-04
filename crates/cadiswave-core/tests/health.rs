@@ -269,10 +269,7 @@ fn collector_parsers_keep_last_iteration_and_reject_unknown_values() {
     assert!(
         parse_mutes(&json!([{"name":"mic", "mute":false}, {"name":"mic", "mute":true}])).is_err()
     );
-    assert_eq!(
-        parse_mutes(&json!([{"name":"mic", "mute":false}])).unwrap()["mic"],
-        false
-    );
+    assert!(!parse_mutes(&json!([{"name":"mic", "mute":false}])).unwrap()["mic"]);
 }
 
 fn graph_node(id: u32, name: &str, class: &str) -> Value {

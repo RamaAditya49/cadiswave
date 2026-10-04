@@ -1,6 +1,6 @@
 # CadisWave desktop design
 
-Status: approved by Rama on 2026-10-04. Product implementation has not started.
+Status: approved by Rama on 2026-10-04. See [implementation verification](../../verification.md) for current results.
 
 ## Purpose
 

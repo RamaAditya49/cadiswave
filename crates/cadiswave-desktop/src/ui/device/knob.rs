@@ -35,6 +35,8 @@ pub struct Knob {
     target: Rc<Cell<f64>>,
     ticking: Rc<Cell<bool>>,
     updating: Rc<Cell<bool>>,
+    interaction: super::interaction::ScaleInteraction,
+    drag: Rc<RefCell<Option<DeviceProjection>>>,
 }
 impl Knob {
     pub fn new(controls: DeviceControls) -> Self {
@@ -52,7 +54,7 @@ impl Knob {
         let draw = value.clone();
         area.set_draw_func(move |_, cr, w, h| {
             let size = f64::from(w.min(h));
-            let radius = size * 0.34;
+            let radius = size * 0.375;
             let cx = f64::from(w) / 2.0;
             let cy = f64::from(h) / 2.0;
             cr.set_line_width(3.0);
@@ -108,12 +110,22 @@ impl Knob {
             &controls.snapshot(),
         )));
         let updating = Rc::new(Cell::new(false));
-        let p = projection.clone();
+        let interaction = super::interaction::ScaleInteraction::bind(
+            &scale,
+            controls.clone(),
+            projection.clone(),
+            updating.clone(),
+            super::interaction::ScaleKind::Dial,
+        );
+        let preview = value.clone();
         let guard = updating.clone();
-        let c = controls.clone();
+        let weak = area.downgrade();
         scale.connect_value_changed(move |scale| {
             if !guard.get() {
-                let _ = c.edit(&p.borrow(), scale.value(), EditTiming::Debounced);
+                preview.set(scale.value());
+                if let Some(area) = weak.upgrade() {
+                    area.queue_draw();
+                }
             }
         });
         let gesture = gtk::GestureDrag::new();
@@ -131,20 +143,27 @@ impl Knob {
         let c = controls.clone();
         let weak = scale.downgrade();
         let guard = updating.clone();
+        let preview = value.clone();
+        let weak_area = area.downgrade();
         gesture.connect_drag_update(move |_, x, y| {
             if let Some(p) = capture.borrow().as_ref() {
                 let pos = (s.get() + (x - y) / 240.0).clamp(0.0, 1.0);
-                if c.edit(p, pos, EditTiming::Debounced).is_ok() {
-                    if let Some(scale) = weak.upgrade() {
-                        guard.set(true);
-                        scale.set_value(pos);
-                        guard.set(false);
+                if c.edit(p, pos, EditTiming::Debounced).is_ok()
+                    && let Some(scale) = weak.upgrade()
+                {
+                    preview.set(pos);
+                    if let Some(area) = weak_area.upgrade() {
+                        area.queue_draw();
                     }
+                    guard.set(true);
+                    scale.set_value(pos);
+                    guard.set(false);
                 }
             }
         });
         let capture = captured.clone();
         let s = start;
+        let controls_for_cancel = controls.clone();
         let c = controls;
         gesture.connect_drag_end(move |_, x, y| {
             if let Some(p) = capture.borrow_mut().take() {
@@ -153,6 +172,18 @@ impl Knob {
                     (s.get() + (x - y) / 240.0).clamp(0.0, 1.0),
                     EditTiming::Immediate,
                 );
+            }
+        });
+        let capture = captured.clone();
+        let c = controls_for_cancel;
+        let preview = value.clone();
+        let weak = area.downgrade();
+        gesture.connect_cancel(move |_, _| {
+            capture.borrow_mut().take();
+            let p = DeviceProjection::from_snapshot(&c.snapshot());
+            preview.set(position(&p).unwrap_or(0.0));
+            if let Some(area) = weak.upgrade() {
+                area.queue_draw();
             }
         });
         area.add_controller(gesture);
@@ -167,18 +198,43 @@ impl Knob {
             target,
             ticking: Rc::new(Cell::new(false)),
             updating,
+            interaction,
+            drag: captured,
         }
     }
     pub fn set_projection(&self, projection: &DeviceProjection) {
         *self.projection.borrow_mut() = projection.clone();
         let position = position(projection);
         self.updating.set(true);
+        if let (Some(state), Some(unit)) = (projection.state.as_ref(), projection.unit) {
+            let profile = unit.profile.profile();
+            let step = match state.knob_mode {
+                KnobMode::Gain => f64::from(profile.gain_scale) * 0.5 / f64::from(profile.gain_max),
+                KnobMode::Headphones => 0.5 / -profile.hp_min_db(),
+                KnobMode::MonitorMix => 1.0 / f64::from(profile.mix_max),
+                _ => 0.005,
+            };
+            self.scale.set_increments(step, step * 10.0);
+        }
         self.scale
             .set_sensitive(projection.writable && position.is_some());
-        self.scale.set_value(position.unwrap_or(0.0));
+        if self.interaction.can_render_value(projection) && self.drag.borrow().is_none() {
+            self.scale.set_value(position.unwrap_or(0.0));
+        }
         self.updating.set(false);
+        if !self.interaction.can_render_value(projection) {
+            return;
+        }
         let next = position.unwrap_or(0.0);
-        if self.target.get() == next {
+        if self.drag.borrow().as_ref().is_some_and(|old| {
+            old.unit == projection.unit
+                && old.state.as_ref().map(|s| s.knob_mode)
+                    == projection.state.as_ref().map(|s| s.knob_mode)
+                && projection.writable
+        }) {
+            return;
+        }
+        if self.target.get() == next && (self.value.get() - next).abs() < 0.0001 {
             return;
         }
         self.target.set(next);

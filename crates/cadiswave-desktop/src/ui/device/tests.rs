@@ -82,10 +82,10 @@ fn unavailable_settings_do_not_submit_hardware_commands() {
     let settings =
         settings::DeviceSettings::new(controls::DeviceControls::new(rig.handle()), locale);
     for widget in crate::ui::test_support::descendants::<gtk::Widget>(&settings.dialog) {
-        if let Ok(row) = widget.downcast::<adw::ActionRow>() {
-            if !row.is_sensitive() {
-                row.emit_by_name::<()>("activated", &[]);
-            }
+        if let Ok(row) = widget.downcast::<adw::ActionRow>()
+            && !row.is_sensitive()
+        {
+            row.emit_by_name::<()>("activated", &[]);
         }
     }
     assert_eq!(rig.device_command_count(), 0);
@@ -136,4 +136,64 @@ fn opening_compact_controls_and_switching_language_keeps_runtime_state() {
     assert_eq!(routes, rig.routing_command_count());
     assert_eq!(rig.device_command_count(), 0);
     window.close();
+}
+#[test]
+#[ignore = "Requires the isolated GTK runner"]
+fn text_editors_exclude_hardware_shortcuts() {
+    use adw::prelude::*;
+    gtk::init().unwrap();
+    let text = gtk::Text::new();
+    let entry = gtk::Entry::new();
+    let view = gtk::TextView::new();
+    for widget in [text.upcast::<gtk::Widget>(), entry.upcast(), view.upcast()] {
+        assert!(!crate::app::shortcuts_allowed(Some(&widget)));
+    }
+    assert!(crate::app::shortcuts_allowed(Some(
+        gtk::Button::new().upcast_ref()
+    )));
+}
+#[test]
+fn language_change_preserves_an_admitted_device_edit() {
+    use cadiswave_core::model::*;
+    use cadiswave_runtime::controller::{AppCommand, EditTiming};
+    let rig = crate::ui::test_support::Rig::new(
+        serde_json::json!({}),
+        vec![crate::ui::test_support::unit("A", 2, -10.0)],
+    );
+    let controls = controls::DeviceControls::new(rig.handle());
+    let before = rig.snapshot();
+    let routes = rig.routing_command_count();
+    let p = projection::DeviceProjection::from_snapshot(&before);
+    let edit = controls.edit(&p, 0.5, EditTiming::Debounced).unwrap();
+    rig.track(edit);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    while rig.snapshot().unit_intents.is_empty() {
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    let language = controls
+        .submit(AppCommand::SetPreferences {
+            changes: PreferencesEdit {
+                language: Some(cadiswave_core::locale::LanguageChoice::Indonesian),
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    rig.track(language);
+    assert!(matches!(
+        rig.outcome(language),
+        CommandOutcome::Applied { .. }
+    ));
+    assert!(matches!(rig.outcome(edit), CommandOutcome::Applied { .. }));
+    assert_eq!(rig.snapshot().selected_unit, before.selected_unit);
+    assert_eq!(
+        rig.snapshot().preferences.language,
+        cadiswave_core::locale::LanguageChoice::Indonesian
+    );
+    assert_eq!(rig.routing_command_count(), routes);
+    assert_eq!(rig.device_command_count(), 1);
+    assert_eq!(
+        rig.device_states()[0].state.known().unwrap().gain_raw,
+        75 * 256 / 2
+    );
 }

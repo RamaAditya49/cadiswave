@@ -15,3 +15,5 @@ pub const RUST_COMPILER: &str = env!("CADISWAVE_BUILD_RUSTC");
 pub const BUILD_TARGET: &str = env!("CADISWAVE_BUILD_TARGET");
 
 pub mod device_meter;
+
+pub mod pipewire_dump;

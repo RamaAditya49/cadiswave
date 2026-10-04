@@ -235,10 +235,8 @@ impl RuntimeEvents {
                     Poll::Pending => {}
                 }
             }
-            if completions_closed {
-                if let Some(error) = snapshots_closed {
-                    return Poll::Ready(Err(error));
-                }
+            if completions_closed && let Some(error) = snapshots_closed {
+                return Poll::Ready(Err(error));
             }
             Poll::Pending
         })
@@ -367,6 +365,10 @@ pub enum BackendCommand {
 }
 
 pub enum BackendEvent {
+    ServiceObserved {
+        state: ServiceState,
+        warning: String,
+    },
     Unit(UnitSnapshot),
     UnitRetired(UnitId),
     DeviceFinished {

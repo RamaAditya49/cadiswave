@@ -2,6 +2,7 @@
 mod process {
     pub use cadiswave_runtime::process::*;
 }
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 mod device {
     include!("../src/device.rs");
     fn fixture_lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -150,6 +151,7 @@ mod device {
                 incarnation: 1,
             },
             transport: Box::new(DockTransport(memory.clone())),
+            usb_serial: None,
             usb_info: Some(DeviceInfo {
                 serial: "FIXTURE".into(),
                 api: "Unavailable".into(),

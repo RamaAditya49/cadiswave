@@ -421,13 +421,12 @@ impl Controller {
         self.meters_dirty = true;
         self.dirty = true;
         self.meter_specs = targets;
-        if !self.frozen {
-            if let Err(error) = self
+        if !self.frozen
+            && let Err(error) = self
                 .backend
                 .dispatch(BackendCommand::MeterTargets(self.meter_specs.clone()))
-            {
-                self.issue("meters", error);
-            }
+        {
+            self.issue("meters", error);
         }
     }
     fn invalidate_meters(&mut self, before: &Sources) {
@@ -492,12 +491,38 @@ impl Controller {
             .collect();
         device_for_capture(serial, &units)
     }
+    fn mute_unit_for_source(&self, source: &Source) -> Option<UnitId> {
+        if let Some(unit) = self.bound_unit(source) {
+            return Some(unit);
+        }
+        self.graph_observation.known()?;
+        let serial = source.hardware_mute_serial()?;
+        let mut captures = self
+            .view
+            .captures
+            .iter()
+            .filter(|capture| capture.node_name == source.node_name);
+        captures.next()?;
+        if captures.next().is_some() {
+            return None;
+        }
+        let mut units = self
+            .units
+            .values()
+            .filter(|unit| unit.info.serial == serial);
+        let unit = units.next()?.id;
+        if units.next().is_some() {
+            None
+        } else {
+            Some(unit)
+        }
+    }
     fn unit_sources(&self, unit: UnitId) -> Vec<SourceId> {
         self.store
             .sources
             .value()
             .iter()
-            .filter(|(_, source)| self.bound_unit(source) == Some(unit))
+            .filter(|(_, source)| self.mute_unit_for_source(source) == Some(unit))
             .map(|(id, _)| id.clone())
             .collect()
     }
@@ -634,7 +659,10 @@ impl Controller {
             if source.kind != SourceKind::Device {
                 continue;
             }
-            if let Some(unit) = self.bound_unit(&source) {
+            if let Some(unit) = self.mute_unit_for_source(&source) {
+                if self.bound_unit(&source) != Some(unit) {
+                    captures.insert(source.node_name.clone());
+                }
                 if !excluded.contains(&unit)
                     && !matches!(origin, Origin::Hardware(from) if *from == unit)
                 {
@@ -841,26 +869,24 @@ impl Controller {
         if self.view.selected_unit.is_none() {
             self.view.selected_unit = Some(id);
         }
-        if !self.frozen {
-            if let Some(muted) = muted {
-                let targets = self.unit_sources(id);
-                // Multiple rows may deliberately keep independent software mutes
-                // while sharing one open device. Reconcile a hardware mismatch
-                // against their aggregate, not each muted row of that open input.
-                let desired_mute = targets
-                    .iter()
-                    .all(|source| self.store.sources.value()[source].muted);
-                for source in targets {
-                    if desired_mute != muted
-                        && !self.unit_mute_pending(id)
-                        && self.store.sources.value()[&source].muted != muted
-                    {
-                        if let Err(error) =
-                            self.set_source_mute(&source, muted, Origin::Hardware(id), None)
-                        {
-                            self.issue("sources", error);
-                        }
-                    }
+        if !self.frozen
+            && let Some(muted) = muted
+        {
+            let targets = self.unit_sources(id);
+            // Multiple rows may deliberately keep independent software mutes
+            // while sharing one open device. Reconcile a hardware mismatch
+            // against their aggregate, not each muted row of that open input.
+            let desired_mute = targets
+                .iter()
+                .all(|source| self.store.sources.value()[source].muted);
+            for source in targets {
+                if desired_mute != muted
+                    && !self.unit_mute_pending(id)
+                    && self.store.sources.value()[&source].muted != muted
+                    && let Err(error) =
+                        self.set_source_mute(&source, muted, Origin::Hardware(id), None)
+                {
+                    self.issue("sources", error);
                 }
             }
         }
@@ -1067,6 +1093,11 @@ impl Controller {
                     request.waiting = false;
                 }
                 self.finish_if_ready(id);
+                self.dirty = true;
+            }
+            BackendEvent::ServiceObserved { state, warning } => {
+                self.view.service_state = state;
+                self.view.service_status = warning;
                 self.dirty = true;
             }
             BackendEvent::Status {

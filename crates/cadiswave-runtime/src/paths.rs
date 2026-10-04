@@ -261,10 +261,10 @@ impl RuntimePaths {
         });
         let mut candidates: Vec<PathBuf> =
             binaries.ancestors().take(8).map(Path::to_owned).collect();
-        if let Some(root) = &compiled_root {
-            if !candidates.contains(root) {
-                candidates.push(root.clone());
-            }
+        if let Some(root) = &compiled_root
+            && !candidates.contains(root)
+        {
+            candidates.push(root.clone());
         }
         for source in candidates {
             if !version_witness(&source.join("VERSION"))
@@ -427,10 +427,10 @@ fn runtime_directory_for_uid(
     runtime: Option<&OsStr>,
     state: impl FnOnce() -> Result<PathBuf>,
 ) -> Result<PathBuf> {
-    if let Some(root) = runtime.filter(|value| !value.is_empty()).map(PathBuf::from) {
-        if private_directory_for_uid(&root, false, uid).is_ok() {
-            return Ok(root.join("cadiswave"));
-        }
+    if let Some(root) = runtime.filter(|value| !value.is_empty()).map(PathBuf::from)
+        && private_directory_for_uid(&root, false, uid).is_ok()
+    {
+        return Ok(root.join("cadiswave"));
     }
     absolute(state()?.join("cadiswave/runtime"))
 }
@@ -607,10 +607,7 @@ fn check_gui_owner(allowed: Option<&str>) -> Result<()> {
             }
             Err(error)
                 if gio::DBusError::remote_error(&error).as_deref()
-                    == Some("org.freedesktop.DBus.Error.NameHasNoOwner") =>
-            {
-                ()
-            }
+                    == Some("org.freedesktop.DBus.Error.NameHasNoOwner") => {}
             Err(error) => {
                 return Err(OperationError::unavailable(format!(
                     "Cannot verify GUI ownership: {error}"
@@ -670,10 +667,7 @@ fn check_gui_owner(allowed: Option<&str>) -> Result<()> {
                         | "org.freedesktop.DBus.Error.ServiceUnknown"
                         | "org.freedesktop.systemd1.NoSuchUnit"
                 )
-            ) =>
-        {
-            ()
-        }
+            ) => {}
         Err(error) => {
             return Err(OperationError::unavailable(format!(
                 "Cannot verify legacy service ownership: {error}"

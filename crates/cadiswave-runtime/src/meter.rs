@@ -185,11 +185,11 @@ impl PcmPeak {
             offset = 1;
             samples = 1;
         }
-        for pair in bytes[offset..].chunks_exact(2) {
+        for pair in bytes[offset..].as_chunks::<2>().0 {
             peak = peak.max(i32::from(i16::from_le_bytes([pair[0], pair[1]])).unsigned_abs());
             samples += 1;
         }
-        if (bytes.len() - offset) % 2 != 0 {
+        if !(bytes.len() - offset).is_multiple_of(2) {
             self.pending = bytes.last().copied();
         }
         (samples != 0).then_some(f64::from(peak) / 32768.0)
@@ -205,11 +205,14 @@ pub(crate) fn nonblocking(stdout: &std::process::ChildStdout) -> Result<()> {
 
 type Targets = HashMap<String, (MeterTarget, u64, Arc<CaptureTap>)>;
 
+#[cfg(test)]
+type FixtureReader = Arc<dyn Fn(&[String]) -> Result<OwnedChild> + Send + Sync>;
+
 // Only unit fixtures may substitute an exclusively owned reader child.
 #[derive(Clone, Default)]
 struct ReaderSpawner {
     #[cfg(test)]
-    fixture: Option<Arc<dyn Fn(&[String]) -> Result<OwnedChild> + Send + Sync>>,
+    fixture: Option<FixtureReader>,
 }
 impl ReaderSpawner {
     fn spawn(&self, args: &[String]) -> Result<OwnedChild> {

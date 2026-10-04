@@ -297,13 +297,13 @@ fn guard(path: &Path, text: Option<&str>, paths: &RuntimePaths, host: &HostConte
             "Desktop integration is package-managed; preserved",
         ));
     }
-    if let Some(text) = text {
-        if !owned(text, paths, host)? {
-            return Err(OperationError::new(
-                ErrorCode::Identity,
-                "Desktop entry belongs to another or unproven installation; preserved. Before removing the previous installation, inspect with cadiswave --migrate-launchers-from /exact/previous/bin/cadiswave --dry-run, then explicitly confirm that migration. Missing previous installation authority cannot be reconstructed from an entry.",
-            ));
-        }
+    if let Some(text) = text
+        && !owned(text, paths, host)?
+    {
+        return Err(OperationError::new(
+            ErrorCode::Identity,
+            "Desktop entry belongs to another or unproven installation; preserved. Before removing the previous installation, inspect with cadiswave --migrate-launchers-from /exact/previous/bin/cadiswave --dry-run, then explicitly confirm that migration. Missing previous installation authority cannot be reconstructed from an entry.",
+        ));
     }
     Ok(())
 }
@@ -373,7 +373,12 @@ pub fn remove_owned_with(paths: &RuntimePaths, host: &HostContext) -> Result<()>
         let Some(text) = service::read_optional(&path)? else {
             continue;
         };
-        if !owned(&text, paths, host)? || host.commands.package_owner(&[path.clone()])?.is_some() {
+        if !owned(&text, paths, host)?
+            || host
+                .commands
+                .package_owner(std::slice::from_ref(&path))?
+                .is_some()
+        {
             continue;
         }
         if paths::has_symlink_ancestor(&path)?
@@ -497,10 +502,7 @@ fn launcher_authority(executable: &Path, uid: u32) -> Result<LauncherAuthority> 
         InstallMethod::Manual
             if install.snapshot.as_ref().is_some_and(|s| {
                 s.format == InstallationFormat::RustV2 && s.files.contains(&executable.to_owned())
-            }) =>
-        {
-            ()
-        }
+            }) => {}
         InstallMethod::Nix
             if prefix.starts_with("/nix/store")
                 && metadata["method"] == "nix"
@@ -628,7 +630,11 @@ pub fn inspect_launcher_migration_with(
             Err(error) => return Err(error.into()),
             Ok(_) => (),
         }
-        if host.commands.package_owner(&[path.clone()])?.is_some() {
+        if host
+            .commands
+            .package_owner(std::slice::from_ref(&path))?
+            .is_some()
+        {
             return Err(migration_error(format!(
                 "Package-managed entry preserved: {}",
                 path.display()
@@ -782,7 +788,7 @@ pub fn apply_launcher_migration_with(
                 || launcher(paths, host) != plan.launcher
                 || host
                     .commands
-                    .package_owner(&[entry.path.clone()])?
+                    .package_owner(std::slice::from_ref(&entry.path))?
                     .is_some()
                 || migration_file(&entry.path, uid)?.1 != entry.identity
             {

@@ -12,3 +12,5 @@ pub mod settings;
 
 pub mod compact;
 pub mod status;
+
+mod interaction;

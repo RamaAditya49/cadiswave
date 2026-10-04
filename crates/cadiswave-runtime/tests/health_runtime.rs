@@ -1,6 +1,8 @@
 use cadiswave_runtime::process;
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 #[path = "../src/health.rs"]
 mod health;
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 #[path = "../src/recovery.rs"]
 mod recovery;
 use cadiswave_core::{
@@ -152,12 +154,10 @@ impl Commands for Fixture {
                 ));
             }
             let graph = self.graph();
-            if restoration {
-                if let Some(observations) = &self.restoration_observations {
-                    observations
-                        .send(graph[0]["info"]["cookie"].as_u64())
-                        .unwrap();
-                }
+            if restoration && let Some(observations) = &self.restoration_observations {
+                observations
+                    .send(graph[0]["info"]["cookie"].as_u64())
+                    .unwrap();
             }
             graph
         } else if args.first().map(String::as_str) == Some("--format=json") {
@@ -558,15 +558,12 @@ fn daemon_shutdown_private_fixture() {
     // A second attempt proves the first replacement observation did not
     // discharge the obligation and release ownership.
     while replacement_observations < 2 {
-        match observed
+        if let Some(cookie) = observed
             .recv_timeout(deadline.saturating_duration_since(Instant::now()))
             .unwrap()
         {
-            Some(cookie) => {
-                assert_eq!(cookie, 8);
-                replacement_observations += 1;
-            }
-            None => {}
+            assert_eq!(cookie, 8);
+            replacement_observations += 1;
         }
     }
     assert!(!restored.load(Ordering::Acquire));

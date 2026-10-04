@@ -99,13 +99,13 @@ impl NormalizedMatcher {
             .collect();
         let mut seen = HashSet::new();
         for stream in streams {
-            if seen.insert(&stream.identity) {
-                if let Some(owner) = self.owner(stream) {
-                    claims
-                        .get_mut(owner)
-                        .expect("matcher owns source")
-                        .push(stream.identity.clone());
-                }
+            if seen.insert(&stream.identity)
+                && let Some(owner) = self.owner(stream)
+            {
+                claims
+                    .get_mut(owner)
+                    .expect("matcher owns source")
+                    .push(stream.identity.clone());
             }
         }
         claims
@@ -120,13 +120,13 @@ impl NormalizedMatcher {
             .collect();
         let mut seen = HashSet::new();
         for stream in streams {
-            if seen.insert(&stream.identity) {
-                if let Some(owner) = self.owner(&NormalizedStream::new(stream)) {
-                    claims
-                        .get_mut(owner)
-                        .expect("matcher owns source")
-                        .push(stream.identity.clone());
-                }
+            if seen.insert(&stream.identity)
+                && let Some(owner) = self.owner(&NormalizedStream::new(stream))
+            {
+                claims
+                    .get_mut(owner)
+                    .expect("matcher owns source")
+                    .push(stream.identity.clone());
             }
         }
         claims

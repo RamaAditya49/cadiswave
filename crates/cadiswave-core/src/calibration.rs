@@ -85,7 +85,7 @@ fn clipping() -> OperationError {
 pub fn metrics_from_raw(raw: &[u8], channels: u32) -> Result<Metrics> {
     let channels = capture_channels(Some(channels))? as usize;
     let frame_bytes = channels * 2;
-    if raw.len() % frame_bytes != 0 {
+    if !raw.len().is_multiple_of(frame_bytes) {
         return Err(OperationError::invalid(
             "malformed audio: expected complete signed-16 PCM frames",
         ));
@@ -101,7 +101,7 @@ pub fn metrics_from_raw(raw: &[u8], channels: u32) -> Result<Metrics> {
     let mut window_peak = 0_i32;
     let mut peaks_db = Vec::with_capacity(frames / WINDOW_FRAMES);
     for (index, frame) in raw.chunks_exact(frame_bytes).enumerate() {
-        for (channel, bytes) in frame.chunks_exact(2).enumerate() {
+        for (channel, bytes) in frame.as_chunks::<2>().0.iter().enumerate() {
             let sample = i32::from(i16::from_le_bytes([bytes[0], bytes[1]]));
             clipped += usize::from(sample.abs() >= 32760);
             energy_sums[channel] += (i64::from(sample) * i64::from(sample)) as u128;

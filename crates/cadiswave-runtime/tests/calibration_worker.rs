@@ -1,8 +1,10 @@
 // Compile the owned module with its private fixture seams; production process
 // ownership stays real, and no test replaces USB/audio state or global PATH.
 use cadiswave_runtime::process;
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 #[path = "../src/calibration.rs"]
 mod calibration;
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 #[path = "../src/recovery.rs"]
 mod recovery;
 

@@ -50,6 +50,10 @@ jobs:
             --proc /proc --dev /dev /usr/bin/true
       - name: Install exact official toolchain
         run: rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+      - name: Check formatting and lint rules
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --locked --workspace --all-targets -- -D warnings
       - name: Exercise native behavior
         run: cargo test --locked --workspace
       - name: Verify missing-file RPM ownership against a private database

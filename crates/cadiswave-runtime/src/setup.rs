@@ -81,6 +81,17 @@ pub fn udev_contents_cover(text: &str) -> bool {
     let pairs: Vec<_> = text.lines().filter_map(parse_rule).collect();
     PROFILES.iter().all(|p| pairs.contains(&(p.vid, p.pid)))
 }
+pub fn udev_contents_cover_profiles(
+    text: &str,
+    profiles: &[cadiswave_core::profiles::ProfileId],
+) -> bool {
+    let pairs: Vec<_> = text.lines().filter_map(parse_rule).collect();
+    !profiles.is_empty()
+        && profiles.iter().all(|id| {
+            let p = id.profile();
+            pairs.contains(&(p.vid, p.pid))
+        })
+}
 fn owned_rule_file(text: &str) -> bool {
     let mut count = 0;
     for line in text
@@ -99,14 +110,22 @@ fn owned_rule_file(text: &str) -> bool {
     count > 0
 }
 fn udev_installed(host: &HostContext) -> Result<bool> {
-    for name in [RULE_NAME, OLD_RULE_NAME] {
+    let mut legacy = Vec::new();
+    for name in [RULE_NAME, OLD_RULE_NAME, "99-openwave.rules"] {
         if let Some(text) = service::read_optional(&host.udev_directory.join(name))? {
             if udev_contents_cover(&text) {
                 return Ok(true);
             }
+            if name != RULE_NAME {
+                legacy.push(text);
+            }
         }
     }
-    Ok(false)
+    if legacy.is_empty() {
+        return Ok(false);
+    }
+    let connected = host.commands.connected_profiles()?;
+    Ok(udev_contents_cover_profiles(&legacy.join("\n"), &connected))
 }
 pub fn mix_definition_token(mix: &Mix) -> String {
     let bytes = serde_json::to_vec(&[mix.id.as_str(), mix.sink.as_str(), mix.description.as_str()])
@@ -228,7 +247,11 @@ pub fn run_with(paths: &RuntimePaths, mixes: &Mixes, host: &HostContext) -> Resu
     }
     let wp_path = wireplumber_path(host);
     if service::read_optional(&wp_path)?.as_deref() != Some(&wp_text) {
-        if host.commands.package_owner(&[wp_path.clone()])?.is_some() {
+        if host
+            .commands
+            .package_owner(std::slice::from_ref(&wp_path))?
+            .is_some()
+        {
             return Err(OperationError::new(
                 ErrorCode::Identity,
                 "WirePlumber rule is package-owned; preserved",
@@ -451,12 +474,11 @@ pub fn remove_udev() -> Result<()> {
     let mut accepted = Vec::new();
     for name in [RULE_NAME, OLD_RULE_NAME] {
         let file = root_rule(&dir, name)?;
-        if let Some(file) = file {
-            if crate::installation::package_owner(&[Path::new(RULE_DIRECTORY).join(name)])?
+        if let Some(file) = file
+            && crate::installation::package_owner(&[Path::new(RULE_DIRECTORY).join(name)])?
                 .is_none()
-            {
-                accepted.push((name, file));
-            }
+        {
+            accepted.push((name, file));
         }
     }
     if accepted.is_empty() {

@@ -321,7 +321,9 @@ fn record(source: &str, file: &str, expected: f64) -> Result {
         thread::sleep(Duration::from_secs(5));
         let bytes = fs::read(file)?;
         let samples: Vec<f32> = bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
             .collect();
         if bytes.len() % 8 != 0 || samples.len() < 4 * 48_000 * 2 {
@@ -360,10 +362,10 @@ fn record(source: &str, file: &str, expected: f64) -> Result {
     // Successful recording ends at our timeout's deadline. Killing pw-cat
     // early is ambiguous: its intentional SIGINT shutdown also returns 1.
     // An early measurement failure cancels only the captured timeout child.
-    if outcome.is_err() {
-        if let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32) {
-            let _ = rustix::process::kill_process(pid, rustix::process::Signal::INT);
-        }
+    if outcome.is_err()
+        && let Some(pid) = rustix::process::Pid::from_raw(child.id() as i32)
+    {
+        let _ = rustix::process::kill_process(pid, rustix::process::Signal::INT);
     }
     let status = child.wait()?;
     if outcome.is_ok() && status.code() != Some(124) {

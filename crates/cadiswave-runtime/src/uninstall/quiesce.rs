@@ -372,44 +372,44 @@ fn process_owners(
             owners.push(pid);
             continue;
         }
-        if let Some(snapshot) = snapshot.filter(|s| s.format != InstallationFormat::RustV2) {
-            if legacy_invocation(&args, &exe) {
-                let module = snapshot
-                    .module_dir
-                    .as_ref()
-                    .ok_or_else(|| error("Missing legacy module identity"))?;
-                let cwd = fs::read_link(root.join("cwd")).map_err(|e| {
-                    error(format!(
-                        "Cannot establish legacy PID {pid} working directory: {e}"
-                    ))
-                })?;
-                if module.parent() == Some(cwd.as_path()) {
-                    owners.push(pid);
-                    continue;
-                }
-                // An exact Python module invocation with other/unknown import
-                // paths is ambiguous, never proof that this install is idle.
-                let environment = fs::read(root.join("environ")).map_err(|e| {
-                    error(format!(
-                        "Cannot establish legacy PID {pid} import identity: {e}"
-                    ))
-                })?;
-                let pythonpath = environment
-                    .split(|b| *b == 0)
-                    .find_map(|p| p.strip_prefix(b"PYTHONPATH="));
-                if pythonpath.is_some_and(|p| {
-                    p.split(|b| *b == b':').any(|p| {
-                        module
-                            .parent()
-                            .is_some_and(|m| m.as_os_str().as_bytes() == p)
-                    })
-                }) {
-                    owners.push(pid);
-                } else {
-                    return Err(error(format!(
-                        "Legacy PID {pid} import identity is ambiguous; close it before retirement"
-                    )));
-                }
+        if let Some(snapshot) = snapshot.filter(|s| s.format != InstallationFormat::RustV2)
+            && legacy_invocation(&args, &exe)
+        {
+            let module = snapshot
+                .module_dir
+                .as_ref()
+                .ok_or_else(|| error("Missing legacy module identity"))?;
+            let cwd = fs::read_link(root.join("cwd")).map_err(|e| {
+                error(format!(
+                    "Cannot establish legacy PID {pid} working directory: {e}"
+                ))
+            })?;
+            if module.parent() == Some(cwd.as_path()) {
+                owners.push(pid);
+                continue;
+            }
+            // An exact Python module invocation with other/unknown import
+            // paths is ambiguous, never proof that this install is idle.
+            let environment = fs::read(root.join("environ")).map_err(|e| {
+                error(format!(
+                    "Cannot establish legacy PID {pid} import identity: {e}"
+                ))
+            })?;
+            let pythonpath = environment
+                .split(|b| *b == 0)
+                .find_map(|p| p.strip_prefix(b"PYTHONPATH="));
+            if pythonpath.is_some_and(|p| {
+                p.split(|b| *b == b':').any(|p| {
+                    module
+                        .parent()
+                        .is_some_and(|m| m.as_os_str().as_bytes() == p)
+                })
+            }) {
+                owners.push(pid);
+            } else {
+                return Err(error(format!(
+                    "Legacy PID {pid} import identity is ambiguous; close it before retirement"
+                )));
             }
         }
     }
@@ -621,7 +621,10 @@ pub(super) fn remove_legacy_service(
         let local = host.config_home.join("systemd/user/cadiswave.service");
         if fragment != local
             || recovery::managed_path(&fragment)?
-            || host.commands.package_owner(&[fragment.clone()])?.is_some()
+            || host
+                .commands
+                .package_owner(std::slice::from_ref(&fragment))?
+                .is_some()
         {
             return Ok(());
         }

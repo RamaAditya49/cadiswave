@@ -246,6 +246,10 @@ impl CommandRunner {
         invocation.extend_from_slice(&args[1..]);
         self.execute(program, &invocation, timeout, true, false, false, true)
     }
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "Keep process security options explicit at the command boundary."
+    )]
     fn execute(
         &self,
         program: &str,
@@ -685,10 +689,7 @@ pub fn supervise_maintenance(args: &[std::ffi::OsString], cancel_on_stdin: bool)
                             if matches!(
                                 error.kind(),
                                 ErrorKind::WouldBlock | ErrorKind::Interrupted
-                            ) =>
-                        {
-                            ()
-                        }
+                            ) => {}
                         Err(error) => return Err(error.into()),
                     }
                 }
@@ -844,11 +845,11 @@ mod supervision_tests {
         for name in ["worker.pid", "query.pid", "descendant.pid"] {
             let path = Path::new("/run/cadiswave-supervision-fixture").join(name);
             loop {
-                if let Ok(text) = fs::read_to_string(&path) {
-                    if let Ok(pid) = text.trim().parse::<u32>() {
-                        pids.push(pid);
-                        break;
-                    }
+                if let Ok(text) = fs::read_to_string(&path)
+                    && let Ok(pid) = text.trim().parse::<u32>()
+                {
+                    pids.push(pid);
+                    break;
                 }
                 assert!(
                     start.elapsed() < Duration::from_secs(3),

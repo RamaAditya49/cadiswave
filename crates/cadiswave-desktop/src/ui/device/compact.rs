@@ -46,6 +46,8 @@ pub struct CompactControls {
     service: gtk::Label,
     projection: Rc<RefCell<DeviceProjection>>,
     updating: Rc<Cell<bool>>,
+    gain_interaction: super::interaction::ScaleInteraction,
+    hp_interaction: super::interaction::ScaleInteraction,
 }
 impl CompactControls {
     pub fn new(controls: DeviceControls, _locale: Rc<RefCell<crate::i18n::I18n>>) -> Self {
@@ -99,22 +101,20 @@ impl CompactControls {
         mute.connect_clicked(move |_| {
             let _ = c.toggle_mute(&p.borrow());
         });
-        let (c, p, g) = (controls.clone(), projection.clone(), updating.clone());
-        gain.connect_value_changed(move |scale| {
-            if !g.get() {
-                let _ = c.edit(&p.borrow(), scale.value(), EditTiming::Debounced);
-            }
-        });
-        let (c, p, g) = (controls.clone(), projection.clone(), updating.clone());
-        hp.connect_value_changed(move |scale| {
-            if !g.get() {
-                let _ = c.set(
-                    &p.borrow(),
-                    DeviceSetting::HeadphoneDb(scale.value()),
-                    EditTiming::Debounced,
-                );
-            }
-        });
+        let gain_interaction = super::interaction::ScaleInteraction::bind(
+            &gain,
+            controls.clone(),
+            projection.clone(),
+            updating.clone(),
+            super::interaction::ScaleKind::Dial,
+        );
+        let hp_interaction = super::interaction::ScaleInteraction::bind(
+            &hp,
+            controls.clone(),
+            projection.clone(),
+            updating.clone(),
+            super::interaction::ScaleKind::Headphones,
+        );
         let (c, p, g) = (controls, projection.clone(), updating.clone());
         low_z.connect_state_set(move |_, active| {
             if !g.get() {
@@ -138,6 +138,8 @@ impl CompactControls {
             service,
             projection,
             updating,
+            gain_interaction,
+            hp_interaction,
         }
     }
     pub fn render(&self, snapshot: &AppSnapshot) {
@@ -159,12 +161,16 @@ impl CompactControls {
         self.mute.set_sensitive(p.writable);
         self.gain
             .set_sensitive(p.writable && knob::position(&p).is_some());
-        self.gain.set_value(knob::position(&p).unwrap_or(0.0));
+        if self.gain_interaction.can_render_value(&p) {
+            self.gain.set_value(knob::position(&p).unwrap_or(0.0));
+        }
         self.hp.set_sensitive(p.writable);
         if let Some(state) = p.state.as_ref() {
             self.hp
                 .set_range(p.unit.unwrap().profile.profile().hp_min_db(), 0.0);
-            self.hp.set_value(state.hp_volume_db);
+            if self.hp_interaction.can_render_value(&p) {
+                self.hp.set_value(state.hp_volume_db);
+            }
             self.low_z.set_active(state.low_impedance.unwrap_or(false));
         }
         self.low_z.set_sensitive(
@@ -187,7 +193,7 @@ impl CompactControls {
         self.meters.set_peaks(peaks);
         self.service.set_text(&format!(
             "{} · {}",
-            crate::i18n::tr(super::status::service_key(&snapshot.service_status)),
+            crate::i18n::tr(super::status::service_key(snapshot.service_state)),
             crate::i18n::tr(if peaks.is_some() {
                 "capture-ready"
             } else {

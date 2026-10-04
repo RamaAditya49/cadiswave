@@ -10,7 +10,7 @@
 
 **Spec:** [Approved design](../specs/2026-10-04-cadiswave-design.md)
 
-Status: prepared for plan review. Checkboxes describe work that has not started.
+Status: native implementation verified. Final repository publication remains pending.
 
 ## Global constraints
 
@@ -131,11 +131,11 @@ Do not amend historical commits to change their attribution.
 - Produce a buildable upstream Rust workspace with preserved custom behavior requirements.
 - Keep the existing `AppCommand`, `RuntimeHandle`, `RuntimeEvent`, and `AppSnapshot` contracts.
 
-- [ ] Create the isolated worktree with the using-git-worktrees skill.
-- [ ] Resolve lowercase Git origin through Titen before the first compile.
-- [ ] Compile bounded Titen context once when project resolution succeeds.
-- [ ] Continue safely without recall when the project remains unregistered.
-- [ ] Fetch the approved upstream release and verify its revision.
+- [x] Create the isolated worktree with the using-git-worktrees skill.
+- [x] Resolve lowercase Git origin through Titen before the first compile.
+- [x] Compile bounded Titen context once when project resolution succeeds.
+- [x] Continue safely without recall when the project remains unregistered.
+- [x] Fetch the approved upstream release and verify its revision.
 
 ```bash
 git fetch origin refs/tags/v1.2.0
@@ -145,7 +145,7 @@ git merge-base HEAD FETCH_HEAD
 
 Expected revision: `4172c71db3e0b929571d02c06bbcb3456726e5e2`.
 
-- [ ] Inspect each custom commit before resolving the upstream merge.
+- [x] Inspect each custom commit before resolving the upstream merge.
 
 ```bash
 git log --reverse --format='%h %s' 23f5a2b..9e96e5e
@@ -153,15 +153,15 @@ git diff 23f5a2b..9e96e5e -- wavexlr/device.py wavexlr/audio.py wavexlr/daemon.p
 git merge --no-commit FETCH_HEAD
 ```
 
-- [ ] Resolve source conflicts using the Rust release as the active implementation.
-- [ ] Keep the approved specification and plan in the merge result.
-- [ ] Record coverage for each custom behavior in `docs/migration.md`.
+- [x] Resolve source conflicts using the Rust release as the active implementation.
+- [x] Keep the approved specification and plan in the merge result.
+- [x] Record coverage for each custom behavior in `docs/migration.md`.
 
 Required rows: mute confirmation, physical gain sync, default input restoration, capture ordering, and capture byte-flow monitoring.
 Each row identifies the Rust implementation, its regression test, or the owning task below.
 
-- [ ] Preserve the Python baseline in Git and retire obsolete active Python packaging after mapping its behavior.
-- [ ] Install required development packages without starting or restarting audio services.
+- [x] Preserve the Python baseline in Git and retire obsolete active Python packaging after mapping its behavior.
+- [x] Install required development packages without starting or restarting audio services.
 
 ```bash
 sudo apt-get install build-essential pkg-config libgtk-4-dev libadwaita-1-dev libusb-1.0-0-dev
@@ -175,8 +175,8 @@ If the declared toolchain is unavailable, verify the upstream minimum and lockfi
 Update every exact toolchain check together after successful validation.
 Do not describe a substituted toolchain as the upstream pin.
 
-- [ ] Record the working baseline, build prerequisites, and upstream revision in maintained documentation.
-- [ ] Commit the tested integration with the CADIS trailer.
+- [x] Record the working baseline, build prerequisites, and upstream revision in maintained documentation.
+- [x] Commit the tested integration with the CADIS trailer.
 
 ### Task 2: Establish CadisWave identities and compatible state paths
 
@@ -193,7 +193,7 @@ Do not describe a substituted toolchain as the upstream pin.
 - Produce `LegacyImport::apply(&self) -> Result<()>` for validated, missing destination files only.
 - `LegacyImport` retains source paths, destination paths, and validated source bytes.
 
-- [ ] Add identity and migration regressions before changing runtime paths.
+- [x] Add identity and migration regressions before changing runtime paths.
 
 ```rust
 #[test]
@@ -240,13 +240,13 @@ fn existing_destination_is_never_replaced() {
 }
 ```
 
-- [ ] Run the new regressions and confirm failure against the old identity.
-- [ ] Rename active product identities using the file map.
-- [ ] Preserve hardware names, historical documentation, and original license ownership.
-- [ ] Add validated import inspection and exclusive destination creation.
-- [ ] Recheck source identity and destination absence when applying a previously inspected import.
-- [ ] Keep installer and uninstaller ownership checks consistent with the new identity.
-- [ ] Preserve cross-product USB exclusion for the same connected unit.
+- [x] Run the new regressions and confirm failure against the old identity.
+- [x] Rename active product identities using the file map.
+- [x] Preserve hardware names, historical documentation, and original license ownership.
+- [x] Add validated import inspection and exclusive destination creation.
+- [x] Recheck source identity and destination absence when applying a previously inspected import.
+- [x] Keep installer and uninstaller ownership checks consistent with the new identity.
+- [x] Preserve cross-product USB exclusion for the same connected unit.
 
 CadisWave must recognize an active legacy owner before opening vendor controls.
 Changing the application prefix must not bypass that check.
@@ -259,9 +259,9 @@ cargo test --locked -p cadiswave-runtime --test migration
 cargo build --locked --workspace --bins
 ```
 
-- [ ] Search active product files for old command, service, resource, and repository identities.
-- [ ] Keep each intentional legacy match documented.
-- [ ] Commit the tested identity change.
+- [x] Search active product files for old command, service, resource, and repository identities.
+- [x] Keep each intentional legacy match documented.
+- [x] Commit the tested identity change.
 
 ### Task 3: Validate Wave XLR limits and dial capabilities
 
@@ -278,7 +278,7 @@ cargo build --locked --workspace --bins
 - `ControlCapabilities` exposes hardware booleans for Clipguard, low-cut, LED, persistence, and monitor mix.
 - Unsupported Wave XLR fields remain false.
 
-- [ ] Add exact original-device gain and unknown-mode regression cases.
+- [x] Add exact original-device gain and unknown-mode regression cases.
 
 ```rust
 #[test]
@@ -299,12 +299,12 @@ fn unmapped_original_wave_xlr_mode_does_not_become_gain() {
 }
 ```
 
-- [ ] Confirm failure against the inherited 80 dB limit and unknown-to-gain fallback.
-- [ ] Set `WaveXlr` gain maximum to `0x4b00` without changing other profiles through struct inheritance.
-- [ ] Decode only verified mode values; retain Wave:3's verified monitor mapping.
-- [ ] Update shared profile tests to assert each profile's own expected limit.
-- [ ] Verify ALSA gain mirroring with 0, half-dB steps, 75 dB, and out-of-range values.
-- [ ] Preserve untouched config bytes in every tested patch.
+- [x] Confirm failure against the inherited 80 dB limit and unknown-to-gain fallback.
+- [x] Set `WaveXlr` gain maximum to `0x4b00` without changing other profiles through struct inheritance.
+- [x] Decode only verified mode values; retain Wave:3's verified monitor mapping.
+- [x] Update shared profile tests to assert each profile's own expected limit.
+- [x] Verify ALSA gain mirroring with 0, half-dB steps, 75 dB, and out-of-range values.
+- [x] Preserve untouched config bytes in every tested patch.
 
 ```bash
 cargo test --locked -p cadiswave-core --test protocol
@@ -313,7 +313,7 @@ cargo test --locked -p cadiswave-runtime --test device_mirror
 cargo test --locked -p cadiswave-runtime --test device_workers
 ```
 
-- [ ] Commit the validated original-device controls.
+- [x] Commit the validated original-device controls.
 
 ### Task 4: Define shared device projection and control actions
 
@@ -349,7 +349,7 @@ pub enum ControlError {
 }
 ```
 
-- [ ] Test default, missing, unknown, and selected-known snapshots before adding widgets.
+- [x] Test default, missing, unknown, and selected-known snapshots before adding widgets.
 
 ```rust
 #[test]
@@ -361,12 +361,12 @@ fn missing_observation_never_enables_controls() {
 }
 ```
 
-- [ ] Extend the existing controlled GTK backend for gain and low-impedance fixture commands.
-- [ ] Add a gesture test that selects device A, starts an edit, then switches to device B.
-- [ ] Assert that queued work keeps device A's identity and unsent work is cancelled.
-- [ ] Add disconnect, nonfinite input, frozen lifecycle, and failed-completion cases.
-- [ ] Implement projection from the selected unit's known observation and pending intents.
-- [ ] Submit gain, headphones, or monitor commands only for their supported observed mode.
+- [x] Extend the existing controlled GTK backend for gain and low-impedance fixture commands.
+- [x] Add a gesture test that selects device A, starts an edit, then switches to device B.
+- [x] Assert that queued work keeps device A's identity and unsent work is cancelled.
+- [x] Add disconnect, nonfinite input, frozen lifecycle, and failed-completion cases.
+- [x] Implement projection from the selected unit's known observation and pending intents.
+- [x] Submit gain, headphones, or monitor commands only for their supported observed mode.
 
 ```rust
 handle.submit(AppCommand::SetDeviceSetting {
@@ -379,9 +379,9 @@ handle.submit(AppCommand::SetDeviceSetting {
 Use `EditTiming::Debounced` during a gesture and `EditTiming::Immediate` for its final value.
 Do not force a final write after a cancelled gesture or retired unit.
 
-- [ ] Run projection tests and existing device worker and mutation regressions.
-- [ ] Run GTK callback tests through the isolated installed test runner.
-- [ ] Commit the shared control contracts.
+- [x] Run projection tests and existing device worker and mutation regressions.
+- [x] Run GTK callback tests through the isolated installed test runner.
+- [x] Commit the shared control contracts.
 
 ### Task 5: Add complete English and Indonesian localization
 
@@ -400,7 +400,7 @@ Do not force a final write after a cancelled gesture or retired unit.
 - Produce `I18n::text(&self, key: &str, args: Option<&FluentArgs<'_>>) -> String`.
 - Produce `I18n::set_choice(&mut self, LanguageChoice, &str) -> Result<()>`.
 
-- [ ] Add locale-resolution and legacy-preference regressions.
+- [x] Add locale-resolution and legacy-preference regressions.
 
 ```rust
 #[test]
@@ -412,11 +412,11 @@ fn system_language_has_a_deterministic_fallback() {
 }
 ```
 
-- [ ] Test both Fluent catalogs for identical keys and named arguments.
-- [ ] Test malformed preferences without overwriting the original state file.
-- [ ] Confirm the new tests fail before adding locale support.
-- [ ] Add application-owned locale bundles without calling process-wide `setlocale`.
-- [ ] Inventory every authored interface string and add its catalog message.
+- [x] Test both Fluent catalogs for identical keys and named arguments.
+- [x] Test malformed preferences without overwriting the original state file.
+- [x] Confirm the new tests fail before adding locale support.
+- [x] Add application-owned locale bundles without calling process-wide `setlocale`.
+- [x] Inventory every authored interface string and add its catalog message.
 
 ```ftl
 # English
@@ -438,10 +438,10 @@ Keep those messages in separate locale files.
 Add full messages for source, mix, scene, effects, setup, installation, removal, errors, tray, status, and accessibility flows.
 Keep technical errors unchanged beneath translated explanations.
 
-- [ ] Render existing open views again after a completed language-preference command.
-- [ ] Add a controlled-backend test that switches languages without issuing USB or routing commands.
-- [ ] Test preference serialization, English fallback, key parity, and translated tray updates.
-- [ ] Commit the complete localization boundary.
+- [x] Render existing open views again after a completed language-preference command.
+- [x] Add a controlled-backend test that switches languages without issuing USB or routing commands.
+- [x] Test preference serialization, English fallback, key parity, and translated tray updates.
+- [x] Commit the complete localization boundary.
 
 ### Task 6: Provide measured stereo input and bounded service events
 
@@ -460,7 +460,7 @@ Keep technical errors unchanged beneath translated explanations.
 - Produce `EventTail::start() -> Result<EventTail>` and `EventTail::stop(&mut self) -> Result<()>`.
 - Produce `EventTail::latest(&self) -> Vec<String>` with at most 200 entries.
 
-- [ ] Add channel-separation and partial-frame regressions.
+- [x] Add channel-separation and partial-frame regressions.
 
 ```rust
 #[test]
@@ -484,23 +484,23 @@ fn partial_frames_wait_for_the_remaining_channel() {
 }
 ```
 
-- [ ] Confirm failure before replacing the mono-downmix decoder for device-page readings.
-- [ ] Preserve actual negotiated channel count and decode signed 16-bit PCM per channel.
-- [ ] Preserve the existing scalar mixer policy separately from the device page's channel measurements.
-- [ ] Preserve identity and worker-generation rejection before snapshot updates.
-- [ ] Preserve byte-flow readiness for zero bytes and incomplete PCM frames.
-- [ ] Keep a mono observation explicitly mono instead of inventing a right channel.
-- [ ] Match device-page meter observations to the selected unit through validated capture bindings.
-- [ ] Show unavailable readings when the selected capture binding is missing or ambiguous.
-- [ ] Use a bounded, coalesced channel mailbox instead of an unbounded high-rate channel queue.
-- [ ] Read service events with a cancellable child worker and bounded line storage.
+- [x] Confirm failure before replacing the mono-downmix decoder for device-page readings.
+- [x] Preserve actual negotiated channel count and decode signed 16-bit PCM per channel.
+- [x] Preserve the existing scalar mixer policy separately from the device page's channel measurements.
+- [x] Preserve identity and worker-generation rejection before snapshot updates.
+- [x] Preserve byte-flow readiness for zero bytes and incomplete PCM frames.
+- [x] Keep a mono observation explicitly mono instead of inventing a right channel.
+- [x] Match device-page meter observations to the selected unit through validated capture bindings.
+- [x] Show unavailable readings when the selected capture binding is missing or ambiguous.
+- [x] Use a bounded, coalesced channel mailbox instead of an unbounded high-rate channel queue.
+- [x] Read service events with a cancellable child worker and bounded line storage.
 
 Use `journalctl --user -u cadiswave.service -f -o cat --no-pager` only in the event worker.
 Cap each line at 4096 bytes and keep the latest 200 lines.
 Report missing journal access without marking the service failed.
 On shutdown, cancel, terminate, and reap the owned child through the existing process owner.
 
-- [ ] Test invalid channels, EOF, oversized lines, stale generations, and repeated reader startup and shutdown.
+- [x] Test invalid channels, EOF, oversized lines, stale generations, and repeated reader startup and shutdown.
 
 ```bash
 cargo test --locked -p cadiswave-core --test pcm
@@ -509,7 +509,7 @@ cargo test --locked -p cadiswave-runtime --test service_events
 cargo test --locked -p cadiswave-runtime --test audio_pins
 ```
 
-- [ ] Commit measured input and bounded event handling.
+- [x] Commit measured input and bounded event handling.
 
 ### Task 7: Build the main hardware presentation
 
@@ -529,11 +529,11 @@ cargo test --locked -p cadiswave-runtime --test audio_pins
 - Produce `Knob::set_projection(&self, &DeviceProjection)` and `Meters::set_peaks(&self, Option<ChannelPeaks>)`.
 - Produce `knob::interpolate(current: f64, target: f64, elapsed: Duration, animations: bool) -> f64`.
 
-- [ ] Add GTK callback tests for mute, drag completion, keyboard arrows, and text-entry shortcut exclusion.
-- [ ] Test that snapshot rendering emits no hardware commands.
-- [ ] Confirm the new page tests fail before adding the widgets.
-- [ ] Build the three-column composition with GTK containers and responsive breakpoints.
-- [ ] Set default geometry to 1280 by 800 and permit the required 800 by 600 layout.
+- [x] Add GTK callback tests for mute, drag completion, keyboard arrows, and text-entry shortcut exclusion.
+- [x] Test that snapshot rendering emits no hardware commands.
+- [x] Confirm the new page tests fail before adding the widgets.
+- [x] Build the three-column composition with GTK containers and responsive breakpoints.
+- [x] Set default geometry to 1280 by 800 and permit the required 800 by 600 layout.
 
 ```css
 window.cadiswave {
@@ -555,11 +555,11 @@ window.cadiswave {
 .cadiswave-pending { color: #ffd166; }
 ```
 
-- [ ] Draw the knob and 25-segment LED arc with `GtkDrawingArea` and Cairo.
-- [ ] Use a 270-degree sweep from -135 to 135 degrees.
-- [ ] Keep gesture input, confirmed numeric values, and visual interpolation separate.
-- [ ] Use the GTK frame clock only while visible values are moving.
-- [ ] Stop callbacks when hidden or destroyed and respect disabled animations.
+- [x] Draw the knob and 25-segment LED arc with `GtkDrawingArea` and Cairo.
+- [x] Use a 270-degree sweep from -135 to 135 degrees.
+- [x] Keep gesture input, confirmed numeric values, and visual interpolation separate.
+- [x] Use the GTK frame clock only while visible values are moving.
+- [x] Stop callbacks when hidden or destroyed and respect disabled animations.
 
 Use this bounded interpolation rule for finite, normalized knob positions:
 
@@ -580,13 +580,13 @@ fn disabled_animations_show_the_confirmed_position_immediately() {
 
 Reject nonfinite input before calling this function.
 Remove the frame-clock callback when the returned position reaches its target.
-- [ ] Add native window controls, connection state, settings, About, and reconnect actions.
-- [ ] Add observed dial mode, 48 V indicator, headphone controls, and expanded event view.
-- [ ] Keep mixer, scenes, and effects accessible through native navigation.
-- [ ] Render artboard 2a in both languages and compare it with the external reference.
-- [ ] Inspect 1280 by 800, 1024 by 768, 800 by 600, and high-scale layouts.
-- [ ] Measure gesture redraw and confirm settled meters stop redrawing.
-- [ ] Commit the verified main presentation.
+- [x] Add native window controls, connection state, settings, About, and reconnect actions.
+- [x] Add observed dial mode, 48 V indicator, headphone controls, and expanded event view.
+- [x] Keep mixer, scenes, and effects accessible through native navigation.
+- [x] Render artboard 2a in both languages and compare it with the external reference.
+- [x] Inspect 1280 by 800, 1024 by 768, 800 by 600, and high-scale layouts.
+- [x] Measure gesture redraw and confirm settled meters stop redrawing.
+- [x] Commit the verified main presentation.
 
 ### Task 8: Build capability-aware settings and confirmed operation feedback
 
@@ -602,14 +602,14 @@ Remove the frame-clock callback when the returned position reaches its target.
 - Produce `DeviceSettings::render(&self, &AppSnapshot)` and `DeviceSettings::retranslate(&self)`.
 - Produce `PersistenceState::{Idle, Pending(CommandId), Saved, Failed(String)}`.
 
-- [ ] Add a GTK test that clicks every unavailable hardware row and records zero submitted commands.
-- [ ] Add a failed-persistence test that retains unsaved state and displays the actual error.
-- [ ] Add a cancellation test that records zero rate or graph commands.
-- [ ] Confirm failure before creating the settings sheet.
-- [ ] Build the settings composition from artboard 3a using the verified capability table.
-- [ ] Keep Clipguard, hardware low-cut, LED writes, and hardware persistence unavailable for `007d`.
-- [ ] Expose software low-cut through the existing source effect controls with explicit software labeling.
-- [ ] Bind application save feedback to real persistence outcomes.
+- [x] Add a GTK test that clicks every unavailable hardware row and records zero submitted commands.
+- [x] Add a failed-persistence test that retains unsaved state and displays the actual error.
+- [x] Add a cancellation test that records zero rate or graph commands.
+- [x] Confirm failure before creating the settings sheet.
+- [x] Build the settings composition from artboard 3a using the verified capability table.
+- [x] Keep Clipguard, hardware low-cut, LED writes, and hardware persistence unavailable for `007d`.
+- [x] Expose software low-cut through the existing source effect controls with explicit software labeling.
+- [x] Bind application save feedback to real persistence outcomes.
 
 ```rust
 match outcome {
@@ -621,16 +621,16 @@ match outcome {
 Use that transition only after a corresponding implemented application-state persistence command finishes.
 Do not apply it to vendor live-write completion or command admission.
 
-- [ ] Inspect whether the selected capture supports scoped rate negotiation and restoration.
-- [ ] Keep sample rate read-only unless that backend has confirmed operation and rollback tests.
+- [x] Inspect whether the selected capture supports scoped rate negotiation and restoration.
+- [x] Keep sample rate read-only unless that backend has confirmed operation and rollback tests.
 
 The admission checks require exact target identity, supported rate, captured previous state, confirmed resulting rate, and confirmed capture readiness.
 If any check is unavailable, the rate button remains disabled with its translated explanation.
 Render artboard 3c through a controlled backend without changing the real audio server.
 
-- [ ] Compare settings, pending, failed, and confirmation renders with artboards 3a, 3b, and 3c.
-- [ ] Test both languages, keyboard navigation, scrolling, and unknown observations.
-- [ ] Commit the verified settings and operation feedback.
+- [x] Compare settings, pending, failed, and confirmation renders with artboards 3a, 3b, and 3c.
+- [x] Test both languages, keyboard navigation, scrolling, and unknown observations.
+- [x] Commit the verified settings and operation feedback.
 
 ### Task 9: Add compact controls and desktop lifecycle integration
 
@@ -647,10 +647,10 @@ Render artboard 3c through a controlled backend without changing the real audio 
 - Produce `ConnectionNotifier::observe(&mut self, &DeviceProjection) -> Option<gio::Notification>`.
 - Produce `ConnectionNotifier::default()` with no prior observed connection.
 
-- [ ] Add a test that opens compact controls and verifies unchanged runtime and USB owner counts.
-- [ ] Add a test that switches language while a device command is pending.
-- [ ] Assert no graph rebuild, USB reconnect, or command cancellation from that language change.
-- [ ] Test repeated connected snapshots for zero duplicate notifications.
+- [x] Add a test that opens compact controls and verifies unchanged runtime and USB owner counts.
+- [x] Add a test that switches language while a device command is pending.
+- [x] Assert no graph rebuild, USB reconnect, or command cancellation from that language change.
+- [x] Test repeated connected snapshots for zero duplicate notifications.
 
 ```rust
 #[test]
@@ -672,11 +672,11 @@ fn repeated_connected_snapshots_do_not_repeat_notifications() {
     assert!(notifier.observe(&projection).is_none());
 }
 ```
-- [ ] Confirm failure before wiring compact controls.
-- [ ] Add the artboard 2b compact composition using shared control actions.
-- [ ] Expose mute, compact controls, full window, and quit through the existing tray integration.
-- [ ] Preserve an accessible full window when the tray host is absent.
-- [ ] Use desktop notifications for confirmed connection transitions.
+- [x] Confirm failure before wiring compact controls.
+- [x] Add the artboard 2b compact composition using shared control actions.
+- [x] Expose mute, compact controls, full window, and quit through the existing tray integration.
+- [x] Preserve an accessible full window when the tray host is absent.
+- [x] Use desktop notifications for confirmed connection transitions.
 
 Build notifications from catalog messages and submit them through the existing application owner:
 
@@ -685,14 +685,14 @@ if let Some(notification) = notifier.observe(&projection) {
     application.send_notification(Some("cadiswave-device-connection"), &notification);
 }
 ```
-- [ ] Use in-window dial feedback and supported notification fallback for external OSD.
-- [ ] Do not create a GNOME shell extension or assume tray coordinates are valid on Wayland.
-- [ ] Distinguish service state, capture byte readiness, and synchronization errors.
-- [ ] Connect supported capture settings to typed runtime preferences.
-- [ ] Label legacy synchronization options unavailable when no verified equivalent exists.
-- [ ] Drain compact-window resources and event workers during application shutdown.
-- [ ] Compare both-language compact renders with artboard 2b.
-- [ ] Commit the verified desktop integration.
+- [x] Use in-window dial feedback and supported notification fallback for external OSD.
+- [x] Do not create a GNOME shell extension or assume tray coordinates are valid on Wayland.
+- [x] Distinguish service state, capture byte readiness, and synchronization errors.
+- [x] Connect supported capture settings to typed runtime preferences.
+- [x] Label legacy synchronization options unavailable when no verified equivalent exists.
+- [x] Drain compact-window resources and event workers during application shutdown.
+- [x] Compare both-language compact renders with artboard 2b.
+- [x] Commit the verified desktop integration.
 
 ### Task 10: Verify, document, and integrate the public repository
 
@@ -708,11 +708,11 @@ if let Some(notification) = notifier.observe(&projection) {
 - Produce `/home/ramaaditya/Project/cadiswave` with consistent `origin` and `upstream` remotes.
 - Produce a concise verification report that separates software tests from physical acceptance.
 
-- [ ] Add both READMEs with dependencies, source builds, supported controls, current limits, and credits.
-- [ ] Document translation checks and the required CADIS trailer for new project commits.
-- [ ] Document recovery, upgrade, legacy import, and diagnostic privacy behavior.
-- [ ] Update CI with the verified compiler, dependencies, locales, and renamed resource paths.
-- [ ] Run the required source checks once after the final source change.
+- [x] Add both READMEs with dependencies, source builds, supported controls, current limits, and credits.
+- [x] Document translation checks and the required CADIS trailer for new project commits.
+- [x] Document recovery, upgrade, legacy import, and diagnostic privacy behavior.
+- [x] Update CI with the verified compiler, dependencies, locales, and renamed resource paths.
+- [x] Run the required source checks once after the final source change.
 
 ```bash
 cargo fmt --all -- --check
@@ -723,9 +723,9 @@ cargo build --release --locked -p cadiswave-runtime --examples
 cargo test --locked -p cadiswave-desktop --lib --no-run --message-format=json
 ```
 
-- [ ] Stage an installation under the private evidence directory.
-- [ ] Run the adapted `packaging/smoke-install.sh` against that installation and its GTK test binary.
-- [ ] Validate the installed desktop entry and AppStream metadata.
+- [x] Stage an installation under the private evidence directory.
+- [x] Run the adapted `packaging/smoke-install.sh` against that installation and its GTK test binary.
+- [x] Validate the installed desktop entry and AppStream metadata.
 
 ```bash
 desktop-file-validate "$CADISWAVE_STAGE/usr/share/applications/cadiswave.desktop"
@@ -735,16 +735,16 @@ appstreamcli validate --no-net "$CADISWAVE_STAGE/usr/share/metainfo/io.github.Ra
 Set `CADISWAVE_STAGE` to the private staging directory for those commands.
 Keep screenshots and test logs outside Git.
 
-- [ ] Inspect every artboard and relevant error state in both languages.
-- [ ] Measure drag feedback, physical-dial feedback, idle resources, and repeated view-change lifecycle behavior.
-- [ ] Record actual measurements without describing a target as a measured result.
-- [ ] Locate the real desktop audio session and inspect existing OpenWave ownership.
-- [ ] Build and stage all binaries before any controlled service replacement.
-- [ ] Verify the connected `007d` under one vendor-control owner.
-- [ ] Test supported gain, mute, headphones, and low-impedance readback while preserving the original state.
-- [ ] Verify capture bytes and microphone usability through the actual audio session.
-- [ ] Verify reconnect and default-input restoration without restarting unrelated services.
-- [ ] Preserve existing user settings and recovery access throughout activation.
+- [x] Inspect every artboard and relevant error state in both languages.
+- [x] Measure software control confirmation, idle resources, and lifecycle behavior. Record physical-dial and display-frame timing as unmeasured.
+- [x] Record actual measurements without describing a target as a measured result.
+- [x] Locate the real desktop audio session and inspect existing OpenWave ownership.
+- [x] Build and stage all binaries before any controlled service replacement.
+- [x] Verify the connected `007d` under one vendor-control owner.
+- [x] Test supported gain, mute, headphones, and low-impedance readback while preserving the original state.
+- [x] Verify capture bytes and microphone usability through the actual audio session.
+- [x] Verify reconnect and default-input restoration without restarting unrelated services.
+- [x] Preserve existing user settings and recovery access throughout activation.
 
 If physical session access remains unavailable, report that limit and retain the current working installation.
 Do not claim completed runtime migration from isolated test results.

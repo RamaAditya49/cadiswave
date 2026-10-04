@@ -17,11 +17,11 @@ DOCDIR = $(DATADIR)/doc/cadiswave
 LICENSEDIR = $(DATADIR)/licenses/cadiswave
 PUBLIC_BINARIES = cadiswave cadiswave-daemon cadiswave-diag cadiswave-probe
 BINARIES = $(PUBLIC_BINARIES) cadiswave-maintenance
-DOCS = ARCHITECTURE.md hardware-support.md install-bazzite.md protocol.md troubleshooting.md
+DOCS = ARCHITECTURE.md hardware-support.md install-bazzite.md protocol.md troubleshooting.md migration.md localization.md upstream.md
 ASSETS = cadiswave.desktop cadiswave-autostart.desktop VERSION data/style.css \
 	wireplumber/51-cadiswave-wave-xlr.conf pipewire/52-cadiswave-mixes.conf \
 	io.github.RamaAditya49.CadisWave.metainfo.xml icons/cadiswave.svg icons/cadiswave-white.svg \
-	icons/cadiswave-black.svg icons/cadiswave-red.svg README.md \
+	icons/cadiswave-black.svg icons/cadiswave-red.svg README.md README.id.md CONTRIBUTING.md SECURITY.md \
 	packaging/asset-attribution.txt LICENSE $(addprefix docs/,$(DOCS))
 
 .PHONY: all build check-toolchain check-install-context check-binaries check-version check-payload install uninstall
@@ -80,6 +80,9 @@ install: check-payload
 	install -m644 icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(DATADIR)/icons/hicolor/scalable/status/"
 	install -m644 icons/cadiswave.svg icons/cadiswave-white.svg icons/cadiswave-black.svg icons/cadiswave-red.svg "$(APPDIR)/icons/"
 	install -Dm644 README.md "$(DOCDIR)/README.md"
+	install -Dm644 README.id.md "$(DOCDIR)/README.id.md"
+	install -Dm644 CONTRIBUTING.md "$(DOCDIR)/CONTRIBUTING.md"
+	install -Dm644 SECURITY.md "$(DOCDIR)/SECURITY.md"
 	install -Dm644 icons/cadiswave.svg "$(DOCDIR)/icons/cadiswave.svg"
 	@set -e; for doc in $(DOCS); do install -Dm644 "docs/$$doc" "$(DOCDIR)/docs/$$doc"; done
 	install -Dm644 packaging/asset-attribution.txt "$(DOCDIR)/asset-attribution.txt"

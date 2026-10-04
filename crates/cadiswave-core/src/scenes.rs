@@ -381,12 +381,11 @@ pub fn pick_hardware_entry<'a>(
             "scene hardware identity is ambiguous",
         ));
     }
-    if !candidate.serial.is_empty() {
-        if let Some((key, patch)) =
+    if !candidate.serial.is_empty()
+        && let Some((key, patch)) =
             hardware.get_key_value(&hardware_key(unit.profile, candidate.serial))
-        {
-            return Ok(Some((key.as_str(), patch)));
-        }
+    {
+        return Ok(Some((key.as_str(), patch)));
     }
     if candidates
         .iter()

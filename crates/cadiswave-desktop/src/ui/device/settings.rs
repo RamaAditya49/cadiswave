@@ -40,6 +40,7 @@ pub struct DeviceSettings {
     revert: gtk::Button,
     feedback: gtk::Label,
     details: gtk::Label,
+    monitor: adw::ActionRow,
     model: Rc<SaveModel>,
 }
 fn unavailable(key: &str) -> adw::ActionRow {
@@ -88,6 +89,7 @@ impl DeviceSettings {
         rate.set_sensitive(false);
         audio.add(&rate);
         let monitor = unavailable("monitor-mix");
+        monitor.set_action_name(Some("win.device-panel"));
         audio.add(&monitor);
         audio.add(&unavailable("save-to-device"));
         let app = group(&page, "settings");
@@ -187,6 +189,7 @@ impl DeviceSettings {
             revert,
             feedback,
             details,
+            monitor,
             model,
         };
         result.render(&result.model.controls.snapshot());
@@ -201,6 +204,18 @@ impl DeviceSettings {
         matched
     }
     pub fn render(&self, snapshot: &AppSnapshot) {
+        let p = super::projection::DeviceProjection::from_snapshot(snapshot);
+        let available = p
+            .unit
+            .is_some_and(|id| cadiswave_core::capabilities::for_profile(id.profile).monitor_mix)
+            && p.writable;
+        self.monitor.set_sensitive(available);
+        self.monitor.set_activatable(available);
+        self.monitor.set_subtitle(&crate::i18n::tr(if available {
+            "monitor-mix-available"
+        } else {
+            "hardware-control-unavailable"
+        }));
         let pending = matches!(*self.model.state.borrow(), PersistenceState::Pending(_));
         if !self.model.dirty.get() && !pending {
             self.model.draft.set(snapshot.preferences.language);

@@ -40,11 +40,11 @@ impl Clone for MeterSender {
 }
 impl Drop for MeterSender {
     fn drop(&mut self) {
-        if self.0.senders.fetch_sub(1, Ordering::AcqRel) == 1 {
-            if let Ok(mut state) = self.0.state.lock() {
-                state.closed = true;
-                self.0.ready.notify_all();
-            }
+        if self.0.senders.fetch_sub(1, Ordering::AcqRel) == 1
+            && let Ok(mut state) = self.0.state.lock()
+        {
+            state.closed = true;
+            self.0.ready.notify_all();
         }
     }
 }

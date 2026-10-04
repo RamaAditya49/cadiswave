@@ -249,13 +249,12 @@ impl RoutingChild for FakeChild {
             world.cookie += 1;
             world.restart_on_terminate = false;
         }
-        if let Some(ids) = world.children.get(&self.id) {
-            if ids
+        if let Some(ids) = world.children.get(&self.id)
+            && ids
                 .iter()
                 .any(|id| world.fail_terminate.contains(&world.name(*id)))
-            {
-                return Err(failed());
-            }
+        {
+            return Err(failed());
         }
         if let Some(ids) = world.children.remove(&self.id) {
             for id in ids {
@@ -522,10 +521,9 @@ impl Fixture {
         loop {
             if let MixerEvent::Observed(observation) =
                 self.events.recv_timeout(Duration::from_secs(4)).unwrap()
+                && predicate(&observation)
             {
-                if predicate(&observation) {
-                    return observation;
-                }
+                return observation;
             }
             assert!(
                 start.elapsed() < Duration::from_secs(4),
@@ -819,12 +817,11 @@ fn recreated_master_restores_then_confirms_without_publishing_unity() {
         if let MixerEvent::MasterObserved {
             mix, level, muted, ..
         } = event
+            && mix == mid("chat")
         {
-            if mix == mid("chat") {
-                assert!((level - 0.25).abs() < 0.001);
-                assert!(muted);
-                observed = true;
-            }
+            assert!((level - 0.25).abs() < 0.001);
+            assert!(muted);
+            observed = true;
         }
     }
     assert!(observed);

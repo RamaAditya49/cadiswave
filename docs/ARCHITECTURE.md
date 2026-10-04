@@ -190,3 +190,31 @@ An unanswered interactive removal dialog reports an immediate public preparation
 After confirmation, removal preparation validates authority and creates any required recovery bundle before the controller gives up its live runtime. Freezing may persist final preferences, but no state is saved again once removal begins, preventing deleted settings from being recreated. Joins and removal run off GTK. Failed operations retain truthful partial results and retry support. [`uninstall::recovery`](../crates/cadiswave-runtime/src/uninstall/recovery.rs) copies the native `cadiswave-maintenance` executable into a private, digest-checked recovery bundle with `plan.json`, so retry does not depend on already removed installed files. Privileged removal independently derives authority from a validated root-owned bootstrap/transaction. A user recovery record never overrides receipt, hash, package or path-boundary validation, and never grants root deletion authority.
 
 The public CLI's cancellation token reaches bounded inventory hashing/unlink and the owned privileged cancellation channel, not merely phase boundaries. Root removal authenticates the initiating login-user process through kernel ancestry, credentials, start identity and executable identity while retaining independent owner/lease exclusion. Historical schema-1 recovery JSON may be `0644` inside a validated private `0700` bundle; it remains inert data, never execution of historical `retry.py`, and does not relax native-record privacy or installation authority checks.
+
+## CadisWave presentation
+
+The Device page and compact window share one runtime handle.
+DeviceControls checks the selected incarnation before submitting each command.
+Drag completion retains the identity captured at drag start.
+Rendering updates confirmed values under signal guards.
+
+The knob draws 25 segments across 270 degrees.
+Its frame callback runs only while the visible position moves.
+Disabled GTK animations apply the confirmed position immediately.
+Native sliders provide keyboard and accessibility controls.
+
+PCM decoding retains incomplete frames and measures channels independently.
+Stereo anti-phase signals remain visible without changing existing scalar mute decisions.
+The meter mailbox retains the latest packet per key, with at most 256 pending keys.
+Reader exit clears channel availability.
+Selected-device meters require an unambiguous capture serial match.
+
+Service events use one owned journal reader.
+The event buffer retains at most 200 lines and 4096 bytes per line.
+Worker cancellation and process cleanup occur after the GTK loop returns.
+Journal access errors do not change capture service status.
+
+Application settings retain their draft until matching persistence completion.
+Hardware live writes do not produce application-save success.
+Unsupported rate changes have no command path.
+Fluent catalogs are embedded and retain English fallback.

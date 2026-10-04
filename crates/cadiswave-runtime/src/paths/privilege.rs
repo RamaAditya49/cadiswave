@@ -55,15 +55,13 @@ fn parent_environment(uid: u32) -> Result<Option<Environment>> {
                     if let Some(value) = entry
                         .strip_prefix(key.as_bytes())
                         .and_then(|rest| rest.strip_prefix(b"="))
-                    {
-                        if values
+                        && values
                             .insert(key.to_owned(), OsString::from_vec(value.to_vec()))
                             .is_some()
-                        {
-                            return Err(identity_error(
-                                "Ambiguous original-user environment selector",
-                            ));
-                        }
+                    {
+                        return Err(identity_error(
+                            "Ambiguous original-user environment selector",
+                        ));
                     }
                 }
             }

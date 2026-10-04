@@ -57,6 +57,7 @@ mod process {
         }
     }
 }
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 mod device {
     include!("../src/device.rs");
     fn fixture_lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -70,6 +71,7 @@ mod device {
         config: Vec<u8>,
         short_read: bool,
         short_write: bool,
+        ignore_write: bool,
         writes: Vec<Vec<u8>>,
     }
     struct MemoryTransport(Arc<Mutex<MemoryUsb>>);
@@ -90,7 +92,9 @@ mod device {
             if state.short_write {
                 return Ok(bytes.len() - 1);
             }
-            state.config.copy_from_slice(bytes);
+            if !state.ignore_write {
+                state.config.copy_from_slice(bytes);
+            }
             Ok(bytes.len())
         }
         fn unresponsive(&self) -> bool {
@@ -136,6 +140,7 @@ mod device {
             config: vec![0; 16],
             short_read: false,
             short_write: false,
+            ignore_write: false,
             writes: vec![],
         }));
         (
@@ -143,6 +148,7 @@ mod device {
                 unit: unit(),
                 transport: Box::new(MemoryTransport(memory.clone())),
                 usb_info: None,
+                usb_serial: None,
             },
             memory,
         )
@@ -216,6 +222,23 @@ mod device {
             assert_eq!(config.as_bytes(), before);
             assert_eq!(config.as_bytes()[28], 0xa7);
         }
+    }
+
+    #[test]
+    fn a_successful_transfer_with_unchanged_hardware_is_not_a_confirmation() {
+        let (vendor, memory) = memory();
+        fixture_lock(&memory).ignore_write = true;
+        let mut backend = SyncedDevice {
+            vendor,
+            alsa: None,
+            mirror: Mirror::default(),
+        };
+        assert!(backend.apply(&[DeviceSetting::Mute(true)]).is_err());
+        assert_eq!(
+            fixture_lock(&memory).writes.len(),
+            1,
+            "writes must not replay"
+        );
     }
 
     #[test]

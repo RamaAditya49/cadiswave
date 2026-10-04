@@ -983,3 +983,26 @@ fn sink_definition_identity_changes_only_with_owned_definition() {
     assert!(rendered.contains(&format!("node.description = {description}")));
     assert!(rendered.contains(&format!("cadiswave.definition = \"{after}\"")));
 }
+#[test]
+fn legacy_permissions_cover_only_the_current_verified_profiles() {
+    use cadiswave_core::profiles::ProfileId;
+    let rule =
+        "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"0fd9\", ATTR{idProduct}==\"007d\", MODE=\"0666\"";
+    assert!(setup::udev_contents_cover_profiles(
+        rule,
+        &[ProfileId::WaveXlr]
+    ));
+    assert!(!setup::udev_contents_cover_profiles(
+        rule,
+        &[ProfileId::WaveXlr, ProfileId::Wave3]
+    ));
+    assert!(!setup::udev_contents_cover_profiles(rule, &[]));
+    assert!(!setup::udev_contents_cover_profiles(
+        &format!("# {rule}"),
+        &[ProfileId::WaveXlr]
+    ));
+    assert!(!setup::udev_contents_cover_profiles(
+        &rule.replace("0666", "0644"),
+        &[ProfileId::WaveXlr]
+    ));
+}

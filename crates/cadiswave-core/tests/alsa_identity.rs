@@ -215,7 +215,7 @@ fn half_db_conversions_keep_ties_even_and_firmware_saturation() {
     assert_eq!(fw_gain_to_alsa(profile, 64), 0);
     assert_eq!(fw_gain_to_alsa(profile, 192), 2);
     assert_eq!(fw_gain_to_alsa(profile, 320), 2);
-    assert_eq!(fw_gain_to_alsa(ProfileId::WaveXlr, 80 * 256), 160);
+    assert_eq!(fw_gain_to_alsa(ProfileId::WaveXlr, 80 * 256), 150);
     assert_eq!(fw_hp_to_alsa(profile, -64), 120);
     assert_eq!(fw_hp_to_alsa(profile, -192), 118);
     assert_eq!(fw_hp_to_alsa(profile, -320), 118);

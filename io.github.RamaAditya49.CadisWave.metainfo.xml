@@ -5,6 +5,8 @@
   <project_license>MIT</project_license>
   <name>CadisWave</name>
   <summary>Control Elgato Wave hardware and route application audio</summary>
+  <name xml:lang="id">CadisWave</name>
+  <summary xml:lang="id">Kontrol perangkat Elgato Wave dan routing audio aplikasi</summary>
   <description>
     <p>CadisWave is a GTK4 and libadwaita control panel for Elgato Wave audio
     hardware on Linux, with a PipeWire mixing matrix for application and
@@ -22,7 +24,7 @@
     <category>Audio</category>
     <category>Mixer</category>
   </categories>
-  <developer id="io.github.RamaAditya49">
+  <developer id="io.github.ramaaditya49">
     <name>CADIS and CadisWave contributors</name>
   </developer>
   <recommends>
@@ -37,10 +39,9 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="1.2.0" date="2026-09-29">
+    <release version="1.2.0" date="2026-10-04">
       <description>
-        <p>Add dedicated XLR Dock MK.2 support, a Reload interface action,
-        and mixer layout improvements.</p>
+        <p>Add the CadisWave device dashboard, compact controls, and bilingual settings.</p>
         <p>Fix native installation, legacy migration, effects configuration,
         autostart interaction, and stream restoration during shutdown.</p>
       </description>

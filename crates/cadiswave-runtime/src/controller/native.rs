@@ -22,6 +22,14 @@ fn service_warning(status: Result<service::ServiceStatus>) -> String {
     }
 }
 
+fn service_state(status: &Result<service::ServiceStatus>) -> ServiceState {
+    match status {
+        Ok(s) if s.failed => ServiceState::Failed,
+        Ok(s) if s.running => ServiceState::Running,
+        Ok(_) => ServiceState::Stopped,
+        Err(_) => ServiceState::Unknown,
+    }
+}
 enum HostCommand {
     Autostart {
         job: u64,
@@ -60,7 +68,27 @@ impl HostWorker {
                     actual: desktop::autostart_state(),
                     error: None,
                 });
-                while let Ok(command) = commands.recv() {
+                loop {
+                    let command = match commands.recv_timeout(std::time::Duration::from_secs(5)) {
+                        Ok(command) => command,
+                        Err(mpsc::RecvTimeoutError::Disconnected) => break,
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            if cancelled.load(Ordering::Acquire) {
+                                break;
+                            }
+                            let status =
+                                host_context().and_then(|host| service::status_with(&paths, &host));
+                            let state = service_state(&status);
+                            let warning = service_warning(status);
+                            if send
+                                .send(BackendEvent::ServiceObserved { state, warning })
+                                .is_err()
+                            {
+                                break;
+                            }
+                            continue;
+                        }
+                    };
                     match command {
                         HostCommand::Autostart {
                             job,
@@ -99,10 +127,15 @@ impl HostWorker {
                             } else {
                                 host_context().and_then(|host| {
                                     let outcome = setup::run_with(&paths, &mixes, &host)?;
+                                    let status = service::status_with(&paths, &host);
+                                    let state = service_state(&status);
+                                    let warning = service_warning(status);
+                                    let _ = send.send(BackendEvent::ServiceObserved {
+                                        state,
+                                        warning: warning.clone(),
+                                    });
                                     let _ = send.send(BackendEvent::Status {
-                                        service: service_warning(service::status_with(
-                                            &paths, &host,
-                                        )),
+                                        service: warning,
                                         setup_required: false,
                                     });
                                     Ok(outcome)
@@ -353,14 +386,26 @@ impl NativeBackend {
                 }
             }
         };
+        let observed_service = if setup::is_sandboxed() {
+            Err(OperationError::unavailable(
+                "Native service is unavailable in the sandbox",
+            ))
+        } else {
+            service::status(&paths)
+        };
+        let state = service_state(&observed_service);
         let service_status = if setup::is_sandboxed() {
             "Sandbox: native host setup and capture service management are unavailable here.".into()
         } else {
-            service_warning(service::status(&paths))
+            service_warning(observed_service)
         };
         queued.push_back(BackendEvent::Status {
-            service: service_status,
+            service: service_status.clone(),
             setup_required: required,
+        });
+        queued.push_back(BackendEvent::ServiceObserved {
+            state,
+            warning: service_status,
         });
         let host = HostWorker::start(paths.clone())?;
         let mut backend = Self {
@@ -393,15 +438,14 @@ impl NativeBackend {
         // No USB enumeration or competing owner before both leases are held.
         let vendor = Lease::vendor_control(self.allowed_bus_owner.as_deref())?;
         let mut active = ActiveWorkers::start(&self.paths)?;
-        if let Some((revision, desired, bindings)) = &self.desired {
-            if let Err(error) =
+        if let Some((revision, desired, bindings)) = &self.desired
+            && let Err(error) =
                 active
                     .mixer
                     .set_desired(*revision, Arc::clone(desired), bindings.clone())
-            {
-                let _ = active.stop();
-                return Err(error);
-            }
+        {
+            let _ = active.stop();
+            return Err(error);
         }
         self.vendor_lease = Some(vendor);
         self.active = Some(active);
@@ -488,10 +532,10 @@ impl Backend for NativeBackend {
         if let Some(event) = self.queued.pop_front() {
             return Some(event);
         }
-        if let Some(host) = self.host.as_ref() {
-            if let Ok(event) = host.events.try_recv() {
-                return Some(event);
-            }
+        if let Some(host) = self.host.as_ref()
+            && let Ok(event) = host.events.try_recv()
+        {
+            return Some(event);
         }
         self.active.as_mut().and_then(ActiveWorkers::next_event)
     }
@@ -724,6 +768,7 @@ mod tests {
             loop {
                 match worker.events.recv_timeout(Duration::from_secs(5)).unwrap() {
                     BackendEvent::Autostart { .. } => {}
+                    BackendEvent::ServiceObserved { .. } => {}
                     BackendEvent::Status {
                         service,
                         setup_required,

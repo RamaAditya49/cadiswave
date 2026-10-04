@@ -35,7 +35,7 @@ The meter begins with two unsigned 32-bit raw levels; their PCM normalization is
 
 | Offset | Type | Field |
 |---|---|---|
-| 0 | uint16 | Gain: raw / 256 dB; maximum `0x5000` (80 dB) |
+| 0 | uint16 | Gain: raw / 256 dB; maximum `0x4b00` (75 dB) for `007d`; `0x5000` (80 dB) for `00a6` |
 | 4 | byte | Mute: `1` muted, `0` live |
 | 6 | byte | 48 V phantom: `1` on, `0` off |
 | 9 | int16 | Headphone level: raw / 256 dB; zero is unity |
@@ -94,3 +94,16 @@ For `00c7`, `dump` reads the three blocks above; unknown selectors are rejected 
 **`poke` writes hardware. Even `poke --noop` sends a full config write.** Its unchanged payload can still trigger firmware side effects; it is not a read-only verification command. The interface is `poke --offset N --byte VALUE`, or `poke --noop` without offset/byte. Both forms prompt for confirmation unless `--yes` is supplied. The config is read after consent, then written and read back for byte-for-byte verification. Do not write unknown offsets, copy byte numbers across profiles, or demonstrate writes by toggling phantom power. Disconnect sensitive equipment and establish the exact target/layout before any controlled write experiment.
 
 A successful unchanged write does not establish that unknown fields are safe or that another PID is compatible. New hardware support requires independently reviewed identity, block and field evidence before enabling writes.
+
+## Capture identity
+
+Native device workers use the USB descriptor serial to match capture nodes.
+Vendor metadata supplies firmware and API versions.
+A missing descriptor serial leaves capture identity unknown.
+
+## Write confirmation
+
+The device worker reads the hardware configuration after each successful write.
+It compares requested fields with the normalized configuration.
+A transfer acknowledgment alone does not establish confirmation.
+A mismatch returns an unavailable result without replaying the write.

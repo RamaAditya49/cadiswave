@@ -307,7 +307,7 @@ fn execute_inner(
             quiesce::request_app_stop(&plan.installation.canonical_identity)?;
         }
         check_cancel(interrupted)?;
-        quiesce::stop_service(paths, snapshot, &host)?;
+        quiesce::stop_service(paths, snapshot, host)?;
         result
             .removed
             .push("Owned capture service stopped (if present)".into());
@@ -328,10 +328,10 @@ fn execute_inner(
         }
         // Manager-owned application files and USB rules are never manual authority.
         remove_desktop(paths, snapshot, host)?;
-        remove_user_audio(paths, &host)?;
+        remove_user_audio(paths, host)?;
         result.removed.push("Eligible owned desktop and audio integration removed; foreign/manager entries preserved".into());
         check_cancel(interrupted)?;
-        remove_usb_rules(paths, &host, bundle.as_ref())?;
+        remove_usb_rules(paths, host, bundle.as_ref())?;
         result
             .removed
             .push("Eligible CadisWave USB rules removed; manager rules preserved".into());
@@ -371,12 +371,12 @@ fn execute_inner(
     match outcome {
         Ok(()) => {
             result.success = true;
-            if let Some(bundle) = bundle {
-                if let Err(error) = bundle.cleanup() {
-                    result.guidance.push_str(&format!(
-                        "\nRemoval completed; recovery cleanup retained: {error}"
-                    ));
-                }
+            if let Some(bundle) = bundle
+                && let Err(error) = bundle.cleanup()
+            {
+                result.guidance.push_str(&format!(
+                    "\nRemoval completed; recovery cleanup retained: {error}"
+                ));
             }
         }
         Err(error) => {
@@ -442,7 +442,11 @@ fn remove_desktop(
             .join("autostart/cadiswave-autostart.desktop"),
         host.data_home.join("applications/cadiswave.desktop"),
     ] {
-        if recovery::managed_path(&path)? || host.commands.package_owner(&[path.clone()])?.is_some()
+        if recovery::managed_path(&path)?
+            || host
+                .commands
+                .package_owner(std::slice::from_ref(&path))?
+                .is_some()
         {
             continue;
         }
@@ -475,7 +479,11 @@ fn remove_user_audio(paths: &RuntimePaths, host: &HostContext) -> Result<()> {
         .join("pipewire/pipewire.conf.d")
         .join(crate::setup::MIXES_NAME);
     for path in [wp, mixes] {
-        if recovery::managed_path(&path)? || host.commands.package_owner(&[path.clone()])?.is_some()
+        if recovery::managed_path(&path)?
+            || host
+                .commands
+                .package_owner(std::slice::from_ref(&path))?
+                .is_some()
         {
             continue;
         }
@@ -732,10 +740,8 @@ pub fn retire_legacy(
         );
         Ok(())
     })();
-    if !dry_run {
-        if let Some(snapshot) = accepted {
-            result.app_removed = app_gone(&snapshot);
-        }
+    if !dry_run && let Some(snapshot) = accepted {
+        result.app_removed = app_gone(&snapshot);
     }
     match outcome {
         Ok(()) => {

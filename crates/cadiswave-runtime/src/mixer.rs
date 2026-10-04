@@ -107,6 +107,10 @@ impl Default for MixerObservation {
     }
 }
 #[derive(Clone, Debug)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "Keep observation packets inline in the bounded worker interface."
+)]
 pub enum MixerEvent {
     Observed(MixerObservation),
     MasterObserved {
@@ -473,10 +477,10 @@ impl GraphSnapshot {
     }
 }
 fn check_pulse_identity(pulse: &Value, node: &GraphNode) -> Result<()> {
-    if let Some(serial) = text(pulse.get("properties").and_then(|p| p.get("object.serial"))) {
-        if serial != node.identity.object_serial {
-            return Err(identity_error("Pulse/PipeWire generation mismatch"));
-        }
+    if let Some(serial) = text(pulse.get("properties").and_then(|p| p.get("object.serial")))
+        && serial != node.identity.object_serial
+    {
+        return Err(identity_error("Pulse/PipeWire generation mismatch"));
     }
     Ok(())
 }
@@ -529,8 +533,12 @@ impl SubprocessPipeWire {
         Ok(self.runner.run(program, args, COMMAND_TIMEOUT)?.stdout)
     }
     fn json(&self, program: &str, args: &[String]) -> Result<Value> {
-        serde_json::from_slice(&self.run(program, args)?)
-            .map_err(|e| unavailable(format!("{program}: {e}")))
+        let bytes = self.run(program, args)?;
+        if program == "pw-dump" {
+            cadiswave_core::pipewire_dump::parse(&bytes)
+        } else {
+            serde_json::from_slice(&bytes).map_err(|e| unavailable(format!("{program}: {e}")))
+        }
     }
     fn command(&self, program: &str, args: &[String]) -> Result<()> {
         self.run(program, args).map(|_| ())
@@ -1170,11 +1178,10 @@ impl Reconciler {
                     muted,
                 })
                 .is_ok()
+                && let Some(master) = self.masters.get_mut(&mix)
             {
-                if let Some(master) = self.masters.get_mut(&mix) {
-                    master.emitted = Some((level, muted));
-                    master.emitted_revision = Some(revision);
-                }
+                master.emitted = Some((level, muted));
+                master.emitted_revision = Some(revision);
             }
         }
     }
@@ -1631,10 +1638,10 @@ impl Reconciler {
         }
         let spec = route.spec.clone();
         // Always repair links, including on a process that never exited.
-        if let Some(target) = &spec.target {
-            if !self.link_nodes(graph, &node_identity, target)? {
-                return Ok(false);
-            }
+        if let Some(target) = &spec.target
+            && !self.link_nodes(graph, &node_identity, target)?
+        {
+            return Ok(false);
         }
         self.link_nodes(graph, &spec.source, &capture_identity)
     }
@@ -1854,13 +1861,13 @@ impl Reconciler {
             .map(|id| (id, Vec::new()))
             .collect();
         for stream in &graph.streams {
-            if let Some((_, normalized)) = self.normalized.get(&stream.identity) {
-                if let Some(owner) = self.matcher.owner(normalized) {
-                    claims
-                        .get_mut(owner)
-                        .expect("desired owner")
-                        .push(stream.identity.clone());
-                }
+            if let Some((_, normalized)) = self.normalized.get(&stream.identity)
+                && let Some(owner) = self.matcher.owner(normalized)
+            {
+                claims
+                    .get_mut(owner)
+                    .expect("desired owner")
+                    .push(stream.identity.clone());
             }
         }
         let effective = self.sync_effects(graph, errors)?;
@@ -2360,16 +2367,16 @@ impl Reconciler {
                 }
             } else {
                 let name = routing::source_sink_name(id);
-                if let Some(handle) = self.sinks.get(&name) {
-                    if let Some(node) = graph.owned(&name, &handle.owner) {
-                        targets.push(MeterTarget {
-                            key: format!("src:{id}"),
-                            node_name: name,
-                            identity: node.identity.clone(),
-                            raw: false,
-                            channels: 2,
-                        });
-                    }
+                if let Some(handle) = self.sinks.get(&name)
+                    && let Some(node) = graph.owned(&name, &handle.owner)
+                {
+                    targets.push(MeterTarget {
+                        key: format!("src:{id}"),
+                        node_name: name,
+                        identity: node.identity.clone(),
+                        raw: false,
+                        channels: 2,
+                    });
                 }
             }
         }

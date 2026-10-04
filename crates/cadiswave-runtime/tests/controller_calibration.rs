@@ -526,13 +526,12 @@ fn rebinding_and_restoring_source_does_not_revive_review() {
         CommandOutcome::Rejected(_)
     ));
     assert_eq!(fixture.bytes(), before);
-    assert_eq!(
-        fixture.handle.snapshot().desired.sources[&fixture.source]
+    assert!(
+        !fixture.handle.snapshot().desired.sources[&fixture.source]
             .fx
             .as_ref()
             .unwrap()
-            .gate,
-        false
+            .gate
     );
 }
 

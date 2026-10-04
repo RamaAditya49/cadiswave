@@ -25,14 +25,13 @@ impl<K: Copy + PartialEq> SnapshotScale<K> {
         if previous == value {
             return false;
         }
-        if let Some((identity, value)) = value {
-            if previous.map(|(identity, _)| identity) != Some(identity)
-                || self.widget.value() != value
-            {
-                let updating = self.updating.replace(true);
-                self.widget.set_value(value);
-                self.updating.set(updating);
-            }
+        if let Some((identity, value)) = value
+            && (previous.map(|(identity, _)| identity) != Some(identity)
+                || self.widget.value() != value)
+        {
+            let updating = self.updating.replace(true);
+            self.widget.set_value(value);
+            self.updating.set(updating);
         }
         true
     }

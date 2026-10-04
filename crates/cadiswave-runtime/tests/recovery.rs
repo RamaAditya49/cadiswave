@@ -1,4 +1,5 @@
 use cadiswave_runtime::process;
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 #[path = "../src/recovery.rs"]
 mod recovery;
 use cadiswave_core::model::{ErrorCode, NodeIdentity, OperationError, Result};

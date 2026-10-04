@@ -85,10 +85,10 @@ fn icon_picker(
     }
     let state = selected.clone();
     flow.connect_selected_children_changed(move |flow| {
-        if let Some(child) = flow.selected_children().first() {
-            if let Some(name) = names.get(child.index() as usize) {
-                *state.borrow_mut() = name.clone();
-            }
+        if let Some(child) = flow.selected_children().first()
+            && let Some(name) = names.get(child.index() as usize)
+        {
+            *state.borrow_mut() = name.clone();
         }
     });
     group.add(&flow);
@@ -249,10 +249,10 @@ fn mix_dialog(parent: &gtk::Window, mix: Option<Mix>, icons: Rc<Icons>, submit: 
     require_name(&name, &save);
     let weak = save.downgrade();
     name.connect_entry_activated(move |_| {
-        if let Some(save) = weak.upgrade() {
-            if save.is_sensitive() {
-                save.emit_clicked();
-            }
+        if let Some(save) = weak.upgrade()
+            && save.is_sensitive()
+        {
+            save.emit_clicked();
         }
     });
     let weak = dialog.downgrade();
@@ -477,18 +477,17 @@ fn source_picker(
             weak_dialog.upgrade(),
             weak_nav.upgrade(),
             list.selected_row(),
-        ) {
-            if let Some(source) = choices.get(row.index() as usize) {
-                source_config(
-                    &dialog,
-                    &nav,
-                    source.clone(),
-                    false,
-                    snapshot.clone(),
-                    icons.clone(),
-                    submit.clone(),
-                );
-            }
+        ) && let Some(source) = choices.get(row.index() as usize)
+        {
+            source_config(
+                &dialog,
+                &nav,
+                source.clone(),
+                false,
+                snapshot.clone(),
+                icons.clone(),
+                submit.clone(),
+            );
         }
     });
     nav.push(&page);
@@ -668,6 +667,54 @@ fn source_config(
         require_name(&name, &save);
         None
     };
+    let hardware_link = if source.kind == SourceKind::Device
+        && !cadiswave_core::profiles::PROFILES.iter().any(|profile| {
+            source
+                .node_name
+                .starts_with(&format!("alsa_input.usb-{}", profile.capture_serial_prefix))
+        }) {
+        let serial = source
+            .hardware_mute_serial()
+            .map(str::to_owned)
+            .or_else(|| {
+                snapshot
+                    .selected_unit
+                    .and_then(|id| snapshot.units.iter().find(|unit| unit.id == id))
+                    .map(|unit| unit.info.serial.clone())
+                    .filter(|serial| !serial.is_empty())
+            });
+        let target = serial.as_ref().and_then(|serial| {
+            let mut units = snapshot
+                .units
+                .iter()
+                .filter(|unit| &unit.info.serial == serial);
+            let unit = units.next()?;
+            if units.next().is_some() {
+                None
+            } else {
+                Some(unit.id.profile.profile().display_name)
+            }
+        });
+        let group = adw::PreferencesGroup::new();
+        let row = adw::SwitchRow::builder()
+            .active(source.hardware_mute_serial().is_some())
+            .sensitive(serial.is_some())
+            .build();
+        crate::i18n::bind(&row, "title", "hardware-mute-link");
+        if let Some(device) = target {
+            row.set_subtitle(&crate::i18n::format(
+                "hardware-mute-link-target",
+                &[("device", device)],
+            ));
+        } else {
+            crate::i18n::bind(&row, "subtitle", "hardware-mute-link-unavailable");
+        }
+        group.add(&row);
+        body.append(&group);
+        Some((row, serial))
+    } else {
+        None
+    };
     let group = entry(&body, "Group", "Group name", &source.group);
     body.append(&hint("Sources sharing a group are mutually exclusive: unmuting one mutes the others. Leave blank for none."));
     let icon = icon_picker(&body, &icons, &source.icon_name, SOURCE_ICONS);
@@ -702,6 +749,13 @@ fn source_config(
                     icon_name: Some(icon.borrow().clone()),
                     match_app_names: names,
                     group: Some(group.text().trim().into()),
+                    hardware_mute_serial: hardware_link.as_ref().map(|(row, serial)| {
+                        if row.is_active() {
+                            serial.clone()
+                        } else {
+                            None
+                        }
+                    }),
                     ..Default::default()
                 },
             });
@@ -710,6 +764,17 @@ fn source_config(
             source.name = text;
             source.icon_name = icon.borrow().clone();
             source.group = group.text().trim().into();
+            if let Some((row, serial)) = &hardware_link {
+                if row.is_active() {
+                    if let Some(serial) = serial {
+                        source
+                            .extra
+                            .insert("hardware_mute_serial".into(), serial.clone().into());
+                    }
+                } else {
+                    source.extra.remove("hardware_mute_serial");
+                }
+            }
             if let Some(names) = names {
                 source.match_app_names = names;
             }
@@ -726,6 +791,46 @@ fn source_config(
 mod tests {
     use super::*;
     use crate::ui::test_support::{Rig, descendants, icons};
+
+    #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn processed_source_editor_links_mute_to_the_captured_device() {
+        adw::init().unwrap();
+        let rig = Rig::new(
+            serde_json::json!({}),
+            vec![crate::ui::test_support::unit("USB-fixture", 2, -12.0)],
+        );
+        let (dialog, nav) = navigation_dialog("Edit Source", 480, 560);
+        let mut source = Source::new("Processed microphone".into(), SourceKind::Device);
+        source.node_name = "processed_fixture".into();
+        let submitted = Rc::new(RefCell::new(Vec::new()));
+        let captured = submitted.clone();
+        source_config(
+            &dialog,
+            &nav,
+            source,
+            true,
+            rig.snapshot(),
+            icons(),
+            Rc::new(move |command| captured.borrow_mut().push(command)),
+        );
+        let widgets = descendants::<gtk::Widget>(&nav);
+        let link = widgets
+            .iter()
+            .find_map(|widget| widget.clone().downcast::<adw::SwitchRow>().ok())
+            .expect("hardware mute link option");
+        link.set_active(true);
+        widgets
+            .iter()
+            .filter_map(|widget| widget.clone().downcast::<gtk::Button>().ok())
+            .find(|button| button.label().as_deref() == Some("Save"))
+            .unwrap()
+            .emit_clicked();
+        let commands = submitted.borrow();
+        assert!(
+            matches!(&commands[..], [AppCommand::EditSource { changes, .. }] if changes.hardware_mute_serial==Some(Some("USB-fixture".into())))
+        );
+    }
 
     #[test]
     #[ignore = "requires the isolated installed GTK test runner"]

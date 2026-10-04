@@ -310,3 +310,8 @@ delete-mix-confirm = Hapus “{ $name }” dan perangkat audio “{ $device }”
 selected-device-detail = Perangkat { $name }: { $detail }
 mute-device = Bisukan { $name }
 unmute-device = Aktifkan { $name }
+monitor-mix-available = Buka panel perangkat di Mixer untuk mengatur mix monitor hardware.
+
+hardware-mute-link = Ikuti mute perangkat
+hardware-mute-link-target = Mute mengikuti { $device }.
+hardware-mute-link-unavailable = Pilih perangkat terhubung sebelum mengaktifkan opsi ini.

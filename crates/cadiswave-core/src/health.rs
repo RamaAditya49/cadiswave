@@ -47,18 +47,19 @@ impl GlitchWatch {
         self.states.remove(name);
     }
     pub fn observe(&mut self, name: &str, identity: &NodeIdentity, xruns: u64) -> bool {
-        if let Some(state) = self.states.get_mut(name) {
-            if state.identity == *identity && xruns >= state.previous {
-                let delta = xruns - state.previous;
-                state.previous = xruns;
-                state.delta = Some(delta);
-                state.streak = if delta >= self.threshold {
-                    state.streak.saturating_add(1)
-                } else {
-                    0
-                };
-                return delta >= self.threshold;
-            }
+        if let Some(state) = self.states.get_mut(name)
+            && state.identity == *identity
+            && xruns >= state.previous
+        {
+            let delta = xruns - state.previous;
+            state.previous = xruns;
+            state.delta = Some(delta);
+            state.streak = if delta >= self.threshold {
+                state.streak.saturating_add(1)
+            } else {
+                0
+            };
+            return delta >= self.threshold;
         }
         self.states.insert(
             name.into(),

@@ -1866,3 +1866,137 @@ fn later_nonvendor_edge_uses_group_handover_without_origin_echo() {
     );
     assert!(commands.iter().any(|command| matches!(command, BackendCommand::Routing { desired, .. } if !desired.sources["a"].muted && desired.sources["b"].muted)));
 }
+
+#[test]
+fn a_linked_processed_capture_follows_hardware_mute_without_a_fake_device_serial() {
+    let f = Rig::new(
+        json!({
+            "raw": {"kind":"device", "node_name":"raw", "muted":false},
+            "processed": {"kind":"device", "node_name":"processed", "muted":false, "hardware_mute_serial":"usb-fixture"}
+        }),
+        json!({}),
+        None,
+    );
+    let initial = unit(2, "usb-fixture", false);
+    f.incoming
+        .send(BackendEvent::Unit(initial.clone()))
+        .unwrap();
+    f.graph(
+        vec![
+            capture("raw", Some("usb-fixture"), Some(false)),
+            capture("processed", None, Some(false)),
+        ],
+        IndexMap::new(),
+    );
+    f.barrier("linked capture initialized");
+    f.drain();
+    let mut changed = initial.clone();
+    if let Observation::Known(state) = &mut changed.state {
+        state.muted = true;
+    }
+    f.incoming.send(BackendEvent::Unit(changed)).unwrap();
+    f.wait(|s| s.desired.sources["processed"].muted);
+    let commands = f.drain();
+    assert!(commands.iter().any(|c| matches!(c, BackendCommand::CaptureMute { node_name, muted:true, .. } if node_name=="processed")));
+    assert!(
+        !commands
+            .iter()
+            .any(|c| matches!(c, BackendCommand::Device { .. })),
+        "hardware observations must not echo writes"
+    );
+    assert!(
+        !f.handle
+            .snapshot()
+            .captures
+            .iter()
+            .find(|c| c.node_name == "processed")
+            .unwrap()
+            .properties
+            .contains_key("device.serial")
+    );
+    f.incoming.send(BackendEvent::Unit(initial)).unwrap();
+    f.wait(|s| !s.desired.sources["processed"].muted);
+    assert!(f.drain().iter().any(|c| matches!(c, BackendCommand::CaptureMute { node_name, muted:false, .. } if node_name=="processed")));
+}
+
+#[test]
+fn a_duplicate_serial_cannot_link_a_processed_capture() {
+    let f = Rig::new(
+        json!({"processed":{"kind":"device","node_name":"processed","muted":false,"hardware_mute_serial":"duplicate"}}),
+        json!({}),
+        None,
+    );
+    f.incoming
+        .send(BackendEvent::Unit(unit(2, "duplicate", false)))
+        .unwrap();
+    f.incoming
+        .send(BackendEvent::Unit(unit(3, "duplicate", false)))
+        .unwrap();
+    f.graph(
+        vec![capture("processed", None, Some(false))],
+        IndexMap::new(),
+    );
+    f.barrier("duplicate serial initialized");
+    f.drain();
+    f.incoming
+        .send(BackendEvent::Unit(unit(2, "duplicate", true)))
+        .unwrap();
+    f.barrier("duplicate serial checked");
+    assert!(!f.handle.snapshot().desired.sources["processed"].muted);
+    assert!(!f.drain().iter().any(|c| matches!(
+        c,
+        BackendCommand::CaptureMute { .. } | BackendCommand::Device { .. }
+    )));
+}
+
+#[test]
+fn direct_device_mute_updates_the_linked_processed_capture() {
+    let f = Rig::new(
+        json!({
+            "raw":{"kind":"device","node_name":"raw","muted":true},
+            "processed":{"kind":"device","node_name":"processed","muted":true,"hardware_mute_serial":"usb-fixture"}
+        }),
+        json!({}),
+        None,
+    );
+    let connected = unit(2, "usb-fixture", true);
+    f.incoming
+        .send(BackendEvent::Unit(connected.clone()))
+        .unwrap();
+    f.graph(
+        vec![
+            capture("raw", Some("usb-fixture"), Some(true)),
+            capture("processed", None, Some(true)),
+        ],
+        IndexMap::new(),
+    );
+    f.barrier("direct linked mute initialized");
+    f.drain();
+    for muted in [false, true] {
+        f.handle
+            .submit(AppCommand::SetDeviceSetting {
+                unit: connected.id,
+                setting: DeviceSetting::Mute(muted),
+                timing: EditTiming::Immediate,
+            })
+            .unwrap();
+        f.barrier(if muted {
+            "direct linked mute closed"
+        } else {
+            "direct linked mute opened"
+        });
+        let commands = f.drain();
+        assert!(commands.iter().any(|c| matches!(c, BackendCommand::CaptureMute { node_name, muted:actual, .. } if node_name=="processed" && *actual==muted)), "linked capture must follow direct hardware controls");
+        assert_eq!(commands.iter().filter(|c| matches!(c, BackendCommand::Device { settings, .. } if settings==&vec![DeviceSetting::Mute(muted)])).count(),1);
+        assert!(
+            !commands.iter().any(
+                |c| matches!(c, BackendCommand::CaptureMute { node_name, .. } if node_name=="raw")
+            ),
+            "physical capture uses its device mirror"
+        );
+        assert_eq!(
+            f.handle.snapshot().desired.sources["processed"].muted,
+            muted
+        );
+    }
+}

@@ -28,7 +28,7 @@ impl Controller {
         if self.graph_observation.known().is_none() {
             return MuteTarget::Missing;
         }
-        if let Some(unit) = self.bound_unit(source) {
+        if let Some(unit) = self.mute_unit_for_source(source) {
             return MuteTarget::Unit(unit);
         }
         let mut captures = self
@@ -276,12 +276,11 @@ impl Controller {
                     .is_some_and(|source| self.handovers.contains_key(&source.group))
             })
         {
-            if let Some((_, previous)) = self.held_captures.insert(node, (binding, owner)) {
-                if previous != owner {
-                    if let Some(id) = previous {
-                        self.finish(id, CommandOutcome::Cancelled);
-                    }
-                }
+            if let Some((_, previous)) = self.held_captures.insert(node, (binding, owner))
+                && previous != owner
+                && let Some(id) = previous
+            {
+                self.finish(id, CommandOutcome::Cancelled);
             }
             return Ok(());
         }
@@ -381,7 +380,7 @@ impl Controller {
                             || source.node_name != *node
                             || source.group != *group
                             || (self.graph_observation.known().is_some()
-                                && self.bound_unit(source) != Some(job.unit))
+                                && self.mute_unit_for_source(source) != Some(job.unit))
                     }) || self.handovers.get(group).is_some_and(|h| h.invalid)
                 });
             if !cancelled

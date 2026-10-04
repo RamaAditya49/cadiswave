@@ -238,10 +238,10 @@ impl ControllerRig {
         let pump = thread::spawn(move || {
             let context = glib::MainContext::new();
             while let Ok(event) = context.block_on(notifications.recv()) {
-                if let RuntimeEvent::CommandFinished { id, result } = event {
-                    if send.send((id, result)).is_err() {
-                        break;
-                    }
+                if let RuntimeEvent::CommandFinished { id, result } = event
+                    && send.send((id, result)).is_err()
+                {
+                    break;
                 }
             }
         });

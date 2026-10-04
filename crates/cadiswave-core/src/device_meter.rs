@@ -37,10 +37,10 @@ pub fn selected_channels(snapshot: &AppSnapshot) -> Option<ChannelPeaks> {
         else {
             continue;
         };
-        if device_for_capture(serial, &units) == Some(selected) {
-            if let Some(peaks) = snapshot.channel_meters.get(&format!("src:{id}")) {
-                readings.push(*peaks);
-            }
+        if device_for_capture(serial, &units) == Some(selected)
+            && let Some(peaks) = snapshot.channel_meters.get(&format!("src:{id}"))
+        {
+            readings.push(*peaks);
         }
     }
     if readings.len() == 1 {

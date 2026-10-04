@@ -2,6 +2,7 @@
 mod process {
     pub use cadiswave_runtime::process::*;
 }
+#[allow(dead_code, reason = "This fixture compiles private production seams.")]
 mod device {
     include!("../src/device.rs");
     fn fixture_lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -102,6 +103,10 @@ mod device {
             self.fixture.fail_polls.load(Ordering::SeqCst)
         }
     }
+    #[expect(
+        clippy::type_complexity,
+        reason = "The fixture returns independent owner observation channels."
+    )]
     fn fixture(
         addresses: &[u8],
         block_address: u8,

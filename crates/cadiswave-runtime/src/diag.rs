@@ -74,7 +74,7 @@ pub trait Collectors {
 }
 pub fn assemble_with(collectors: &dyn Collectors, full: bool, device: bool, stamp: &str) -> String {
     let mut out = format!(
-        "CadisWave diagnostics — {stamp}\nSource: https://github.com/rikkichy/openwave\nPrivacy: filesystem paths redacted; vendor/product IDs retained. {}\n",
+        "CadisWave diagnostics — {stamp}\nSource: https://github.com/RamaAditya49/cadiswave\nPrivacy: filesystem paths redacted; vendor/product IDs retained. {}\n",
         if full {
             "Serials and other private details included (--full); review before sharing."
         } else {
@@ -397,7 +397,7 @@ pub fn collect_configs(root: &Path, full: bool) -> Result<String> {
         };
         let body = bounded_text(&path);
         let state = body.as_ref().map_err(|e| e.to_string()).and_then(|s| {
-            serde_json::from_str::<serde_json::Value>(s)
+            cadiswave_core::pipewire_dump::parse(s.as_bytes())
                 .map(|_| ())
                 .map_err(|e| e.to_string())
         });
@@ -411,11 +411,9 @@ pub fn collect_configs(root: &Path, full: bool) -> Result<String> {
                 Err(_) => "BROKEN (details withheld)".into(),
             }
         );
-        if full {
-            if let Ok(body) = body {
-                out.push_str(body.trim_end());
-                out.push('\n');
-            }
+        if full && let Ok(body) = body {
+            out.push_str(body.trim_end());
+            out.push('\n');
         }
     }
     if !full {

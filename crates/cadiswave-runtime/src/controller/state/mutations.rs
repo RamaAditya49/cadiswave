@@ -81,6 +81,24 @@ impl Controller {
                     }
                     record.node_name = node;
                 }
+                if let Some(serial) = changes.hardware_mute_serial {
+                    if record.kind != SourceKind::Device
+                        || serial.as_ref().is_some_and(|serial| {
+                            serial.is_empty() || serial.len() > 128 || !serial.is_ascii()
+                        })
+                    {
+                        return Err(OperationError::invalid(
+                            "Hardware mute links require a capture source and a valid USB serial",
+                        ));
+                    }
+                    if let Some(serial) = serial {
+                        record
+                            .extra
+                            .insert("hardware_mute_serial".into(), serial.into());
+                    } else {
+                        record.extra.remove("hardware_mute_serial");
+                    }
+                }
                 if let Some(catch_all) = changes.catch_all {
                     record.extra.insert("catch_all".into(), catch_all.into());
                 }
@@ -595,12 +613,17 @@ impl Controller {
                     routing::set_source_muted(&mut candidate, source, muted)?;
                 }
                 self.commit_sources(candidate)?;
-                // This captured unit is written explicitly below. Do not fall
-                // back to a graph capture write for its rows while discovery is
-                // unknown; only mirror the other members changed by the group.
+                // The device mirror owns physical capture mute.
+                // Confirmed processed links also require their own capture write.
+                // Unknown graph state cannot authorize a processed link.
                 for source in &sources {
-                    before.get_mut(source).expect("captured source").muted =
-                        self.store.sources.value()[source].muted;
+                    let record = &self.store.sources.value()[source];
+                    let processed_link = record.hardware_mute_serial().is_some()
+                        && self.mute_unit_for_source(record) == Some(unit)
+                        && self.bound_unit(record) != Some(unit);
+                    if !processed_link {
+                        before.get_mut(source).expect("captured source").muted = record.muted;
+                    }
                 }
                 self.sync_mutes_excluding(&before, &Origin::User, Some(id), &HashSet::from([unit]));
                 let muted = sources
@@ -741,15 +764,14 @@ impl Controller {
                         .value()
                         .get(&id)
                         .is_some_and(|source| source.muted != *muted)
-                {
-                    if let Err(error) = self.set_source_mute(
+                    && let Err(error) = self.set_source_mute(
                         &id,
                         *muted,
                         Origin::Capture(capture.identity.clone()),
                         None,
-                    ) {
-                        self.issue("sources", error);
-                    }
+                    )
+                {
+                    self.issue("sources", error);
                 }
             }
         }
@@ -836,10 +858,10 @@ impl Controller {
             preferences
                 .offered_capture_nodes
                 .push(capture.node_name.clone());
-            if self.store.preferences.writable() {
-                if let Err(error) = self.store.preferences.replace(preferences.clone()) {
-                    self.issue("preferences", error);
-                }
+            if self.store.preferences.writable()
+                && let Err(error) = self.store.preferences.replace(preferences.clone())
+            {
+                self.issue("preferences", error);
             }
             self.view.preferences = Arc::new(preferences);
             self.dirty = true;
@@ -863,14 +885,13 @@ impl Controller {
         self.handovers.clear();
         self.cancel_pending(|_| true);
         self.cancel_calibration();
-        if self.store.preferences.writable() {
-            if let Err(error) = self
+        if self.store.preferences.writable()
+            && let Err(error) = self
                 .store
                 .preferences
                 .replace((*self.view.preferences).clone())
-            {
-                self.issue("preferences", error);
-            }
+        {
+            self.issue("preferences", error);
         }
         self.dirty = true;
         self.publish();

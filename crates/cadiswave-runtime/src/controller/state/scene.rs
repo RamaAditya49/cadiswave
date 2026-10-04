@@ -238,21 +238,20 @@ impl Controller {
             }
         }
         for (source, patch) in &patches {
-            if patch.muted.is_some() {
-                if let Some(unit) = SourceId::new(source.clone())
+            if patch.muted.is_some()
+                && let Some(unit) = SourceId::new(source.clone())
                     .ok()
                     .and_then(|id| self.store.sources.value().get(&id))
                     .and_then(|source| self.bound_unit(source))
-                {
-                    superseded.insert(PendingKey::Device(unit, SettingField::Mute));
-                }
+            {
+                superseded.insert(PendingKey::Device(unit, SettingField::Mute));
             }
         }
         for (id, source) in self.store.sources.value() {
-            if before.get(id).is_some_and(|old| old.muted != source.muted) {
-                if let Some(unit) = self.bound_unit(source) {
-                    superseded.insert(PendingKey::Device(unit, SettingField::Mute));
-                }
+            if before.get(id).is_some_and(|old| old.muted != source.muted)
+                && let Some(unit) = self.bound_unit(source)
+            {
+                superseded.insert(PendingKey::Device(unit, SettingField::Mute));
             }
         }
         if let Some(cells) = &scene.cells {

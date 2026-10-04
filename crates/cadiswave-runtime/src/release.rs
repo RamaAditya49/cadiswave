@@ -34,12 +34,12 @@ pub fn validate_version(file: &Path, tag: Option<&str>) -> Result<String> {
     let raw = fs::read_to_string(file)?;
     let version = raw.strip_suffix('\n').unwrap_or(&raw);
     stable_version(version)?;
-    if let Some(tag) = tag {
-        if tag != format!("v{version}") {
-            return Err(ReleaseError::Invalid(format!(
-                "tag {tag:?} does not match VERSION ({version})"
-            )));
-        }
+    if let Some(tag) = tag
+        && tag != format!("v{version}")
+    {
+        return Err(ReleaseError::Invalid(format!(
+            "tag {tag:?} does not match VERSION ({version})"
+        )));
     }
     Ok(version.into())
 }

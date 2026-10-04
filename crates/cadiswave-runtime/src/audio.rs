@@ -430,7 +430,7 @@ fn audio_loop(
     while !cancel.load(Ordering::Acquire) {
         let observation = runner
             .run("pw-dump", &["--no-colors".into()], Duration::from_secs(3))
-            .and_then(|output| Ok(serde_json::from_slice::<Value>(&output.stdout)?))
+            .and_then(|output| cadiswave_core::pipewire_dump::parse(&output.stdout))
             .and_then(|value| capture_nodes(&value));
         if cancel.load(Ordering::Acquire) {
             break;

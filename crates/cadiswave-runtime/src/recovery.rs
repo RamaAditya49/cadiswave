@@ -68,8 +68,13 @@ pub(crate) fn json_command(
 ) -> Result<Value> {
     let args = args.iter().map(|arg| (*arg).to_owned()).collect::<Vec<_>>();
     let output = runner.run(program, &args, COMMAND_TIMEOUT, restoration)?;
-    serde_json::from_slice(&output)
-        .map_err(|error| OperationError::unavailable(format!("Invalid {program} JSON: {error}")))
+    if program == "pw-dump" {
+        cadiswave_core::pipewire_dump::parse(&output)
+    } else {
+        serde_json::from_slice(&output).map_err(|error| {
+            OperationError::unavailable(format!("Invalid {program} JSON: {error}"))
+        })
+    }
 }
 fn listing(runner: &impl Commands, kind: &str, restoration: bool) -> Result<Vec<Value>> {
     let value = json_command(

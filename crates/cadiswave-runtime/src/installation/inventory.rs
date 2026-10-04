@@ -43,10 +43,16 @@ pub const NATIVE_PAYLOAD: &[&str] = &[
     "share/cadiswave/icons/cadiswave-black.svg",
     "share/cadiswave/icons/cadiswave-red.svg",
     "share/doc/cadiswave/README.md",
+    "share/doc/cadiswave/README.id.md",
+    "share/doc/cadiswave/CONTRIBUTING.md",
+    "share/doc/cadiswave/SECURITY.md",
     "share/doc/cadiswave/icons/cadiswave.svg",
     "share/doc/cadiswave/asset-attribution.txt",
     "share/licenses/cadiswave/LICENSE",
     "share/doc/cadiswave/docs/ARCHITECTURE.md",
+    "share/doc/cadiswave/docs/migration.md",
+    "share/doc/cadiswave/docs/localization.md",
+    "share/doc/cadiswave/docs/upstream.md",
     "share/doc/cadiswave/docs/hardware-support.md",
     "share/doc/cadiswave/docs/install-bazzite.md",
     "share/doc/cadiswave/docs/protocol.md",
@@ -440,13 +446,13 @@ fn existing_hashes_checked(
 ) -> Result<()> {
     for (path, digest) in &snapshot.identities {
         check_cancel()?;
-        if let Some(mut file) = regular(path)? {
-            if super::io::digest_open_cancellable(&mut file, check_cancel)? != *digest {
-                return Err(invalid(format!(
-                    "Installed file changed: {}",
-                    path.display()
-                )));
-            }
+        if let Some(mut file) = regular(path)?
+            && super::io::digest_open_cancellable(&mut file, check_cancel)? != *digest
+        {
+            return Err(invalid(format!(
+                "Installed file changed: {}",
+                path.display()
+            )));
         }
     }
     for path in &snapshot.directories {
@@ -482,14 +488,13 @@ fn validate_installation_checked(
             ));
         }
     }
-    if snapshot.format == InstallationFormat::PythonLegacy {
-        if let Some(module) = &snapshot.module_dir {
-            if regular(&module.join("install-location.json"))?.is_some() {
-                return Err(invalid(
-                    "Legacy recovery cannot override a new module locator",
-                ));
-            }
-        }
+    if snapshot.format == InstallationFormat::PythonLegacy
+        && let Some(module) = &snapshot.module_dir
+        && regular(&module.join("install-location.json"))?.is_some()
+    {
+        return Err(invalid(
+            "Legacy recovery cannot override a new module locator",
+        ));
     }
     existing_hashes_checked(snapshot, check_cancel)
 }
@@ -678,16 +683,14 @@ fn inspect_legacy(prefix: &Path, explicit: Option<&Path>) -> Result<Installation
         .skip(1)
         .filter(|p| *p != prefix && *p != Path::new("/"))
     {
-        if let Some(_) = regular(&ancestor.join("bin/cadiswave"))? {
-            if let Ok(bytes) = read_bytes(&ancestor.join("bin/cadiswave")) {
-                if let Ok(other) = std::str::from_utf8(&bytes) {
-                    if wrapper_module(ancestor, other).is_ok() {
-                        return Err(invalid(format!(
-                            "Multiple legacy launcher prefixes. {MIGRATION}"
-                        )));
-                    }
-                }
-            }
+        if let Some(_) = regular(&ancestor.join("bin/cadiswave"))?
+            && let Ok(bytes) = read_bytes(&ancestor.join("bin/cadiswave"))
+            && let Ok(other) = std::str::from_utf8(&bytes)
+            && wrapper_module(ancestor, other).is_ok()
+        {
+            return Err(invalid(format!(
+                "Multiple legacy launcher prefixes. {MIGRATION}"
+            )));
         }
     }
     if regular(&prefix.join("share/applications/cadiswave.desktop"))?.is_none()
@@ -748,12 +751,12 @@ pub fn check_install_target(prefix: &Path, destdir: Option<&Path>) -> Result<()>
         .collect::<Result<Vec<_>>>()?;
     // Empty package build destinations carry no old ownership to retire. This
     // also permits a fresh Nix /nix/store output and Flatpak /app build tree.
-    if !existing.is_empty() {
-        if let Some(owner) = package_owner(&existing)? {
-            return Err(invalid(format!(
-                "Install target is owned by {owner:?}; use its package manager"
-            )));
-        }
+    if !existing.is_empty()
+        && let Some(owner) = package_owner(&existing)?
+    {
+        return Err(invalid(format!(
+            "Install target is owned by {owner:?}; use its package manager"
+        )));
     }
     let accepted = if regular(&actual.join(RECEIPT))?.is_some() {
         let installation = inspect_prefix(&actual, None)?;
@@ -964,12 +967,11 @@ fn receipt_unchanged(snapshot: &InstallationSnapshot) -> Result<()> {
             return Err(invalid("Receipt changed during removal"));
         }
     }
-    if snapshot.format == InstallationFormat::PythonLegacy {
-        if let Some(module) = &snapshot.module_dir {
-            if regular(&module.join("install-location.json"))?.is_some() {
-                return Err(invalid("A locator appeared during legacy removal"));
-            }
-        }
+    if snapshot.format == InstallationFormat::PythonLegacy
+        && let Some(module) = &snapshot.module_dir
+        && regular(&module.join("install-location.json"))?.is_some()
+    {
+        return Err(invalid("A locator appeared during legacy removal"));
     }
     Ok(())
 }

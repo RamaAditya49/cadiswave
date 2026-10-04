@@ -128,7 +128,7 @@ fn malformed_preferences_fail_instead_of_becoming_truthy() {
     assert!(Preferences::from_value(json!({"offered_capture_nodes":[1]})).is_err());
     let prefs =
         Preferences::from_value(json!({"width":1,"height":100,"extension":{"keep":true}})).unwrap();
-    assert_eq!((prefs.width, prefs.height), (820, 480));
+    assert_eq!((prefs.width, prefs.height), (800, 600));
     assert_eq!(
         serde_json::to_value(prefs).unwrap()["extension"],
         json!({"keep":true})

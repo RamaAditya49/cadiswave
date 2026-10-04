@@ -23,6 +23,10 @@ pub fn panel() -> gtk::Box {
 pub struct DevicePage {
     pub widget: gtk::ScrolledWindow,
     columns: gtk::Box,
+    face: gtk::Box,
+    left: gtk::Box,
+    center: gtk::Box,
+    hp_interaction: super::interaction::ScaleInteraction,
     pub knob: Knob,
     meters: Meters,
     reading: gtk::Label,
@@ -58,12 +62,15 @@ impl DevicePage {
         let columns = gtk::Box::new(gtk::Orientation::Horizontal, 24);
         columns.set_vexpand(true);
         let left = gtk::Box::new(gtk::Orientation::Vertical, 20);
-        left.set_width_request(230);
+        left.set_width_request(260);
+        left.set_hexpand(false);
         let input = panel();
         input.append(&label("input-level", "cadiswave-caption"));
         let meters = Meters::new();
         input.append(&meters.widget);
         let reading = label("unknown-reading", "cadiswave-reading");
+        reading.set_wrap(true);
+        reading.set_max_width_chars(16);
         input.append(&reading);
         let gain = gtk::Label::new(None);
         gain.set_xalign(0.0);
@@ -94,9 +101,13 @@ impl DevicePage {
         device.append(&mute);
         let dial_value = gtk::Label::new(Some("—"));
         dial_value.add_css_class("cadiswave-dial-value");
-        device.append(&dial_value);
+        let face = gtk::Box::new(gtk::Orientation::Horizontal, 20);
+        dial_value.set_hexpand(true);
+        dial_value.set_valign(gtk::Align::Center);
+        face.append(&dial_value);
         let knob = Knob::new(controls.clone());
-        device.append(&knob.widget);
+        face.append(&knob.widget);
+        device.append(&face);
         device.append(&label("dial-control", "cadiswave-caption"));
         let phantom = label("phantom-indicator", "dim-label");
         device.append(&phantom);
@@ -112,7 +123,8 @@ impl DevicePage {
         crate::i18n::protect(&info);
         center.append(&info);
         let right = gtk::Box::new(gtk::Orientation::Vertical, 20);
-        right.set_width_request(240);
+        right.set_width_request(280);
+        right.set_hexpand(false);
         let hp = panel();
         hp.append(&label("mode-headphones", "cadiswave-caption"));
         let headphone_value = gtk::Label::new(None);
@@ -178,16 +190,13 @@ impl DevicePage {
         mute.connect_clicked(move |_| {
             let _ = c.toggle_mute(&p.borrow());
         });
-        let (p, c, guard) = (projection.clone(), controls.clone(), updating.clone());
-        headphone.connect_value_changed(move |scale| {
-            if !guard.get() {
-                let _ = c.set(
-                    &p.borrow(),
-                    DeviceSetting::HeadphoneDb(scale.value()),
-                    EditTiming::Debounced,
-                );
-            }
-        });
+        let hp_interaction = super::interaction::ScaleInteraction::bind(
+            &headphone,
+            controls.clone(),
+            projection.clone(),
+            updating.clone(),
+            super::interaction::ScaleKind::Headphones,
+        );
         let (p, c, guard) = (projection.clone(), controls, updating.clone());
         low_z.connect_state_set(move |_, active| {
             if !guard.get() {
@@ -202,6 +211,10 @@ impl DevicePage {
         Self {
             widget,
             columns,
+            face,
+            left,
+            center,
+            hp_interaction,
             knob,
             meters,
             reading,
@@ -224,19 +237,46 @@ impl DevicePage {
             updating,
         }
     }
-    pub fn set_narrow(&self, narrow: bool) {
-        self.columns.set_orientation(if narrow {
-            gtk::Orientation::Vertical
-        } else {
-            gtk::Orientation::Horizontal
-        });
+    pub fn install_breakpoints(
+        &self,
+        window: &adw::ApplicationWindow,
+        split: &adw::OverlaySplitView,
+    ) {
+        let medium = adw::Breakpoint::new(
+            adw::BreakpointCondition::parse("max-width: 1220sp").expect("constant breakpoint"),
+        );
+        medium.add_setter(
+            &self.face,
+            "orientation",
+            Some(&gtk::Orientation::Vertical.to_value()),
+        );
+        window.add_breakpoint(medium);
+        let small = adw::Breakpoint::new(
+            adw::BreakpointCondition::parse("max-width: 1000sp").expect("constant breakpoint"),
+        );
+        small.add_setter(
+            &self.face,
+            "orientation",
+            Some(&gtk::Orientation::Vertical.to_value()),
+        );
+        small.add_setter(
+            &self.columns,
+            "orientation",
+            Some(&gtk::Orientation::Vertical.to_value()),
+        );
+        small.add_setter(split, "collapsed", Some(&true.to_value()));
+        let (columns, center) = (self.columns.clone(), self.center.clone());
+        small.connect_apply(move |_| columns.reorder_child_after(&center, None::<&gtk::Widget>));
+        let (columns, left) = (self.columns.clone(), self.left.clone());
+        small.connect_unapply(move |_| columns.reorder_child_after(&left, None::<&gtk::Widget>));
+        window.add_breakpoint(small);
     }
     pub fn set_events(&self, events: &[String]) {
-        if let Some(last) = events.last() {
-            if self.event.text() != *last {
-                self.event.set_text(last);
-                self.event_text.buffer().set_text(&events.join("\n"));
-            }
+        if let Some(last) = events.last()
+            && self.event.text() != *last
+        {
+            self.event.set_text(last);
+            self.event_text.buffer().set_text(&events.join("\n"));
         }
     }
     pub fn render(&self, snapshot: &AppSnapshot) {
@@ -317,7 +357,9 @@ impl DevicePage {
         if let Some(state) = state {
             self.headphone
                 .set_range(p.unit.unwrap().profile.profile().hp_min_db(), 0.0);
-            self.headphone.set_value(state.hp_volume_db);
+            if self.hp_interaction.can_render_value(&p) {
+                self.headphone.set_value(state.hp_volume_db);
+            }
             self.low_z.set_active(state.low_impedance.unwrap_or(false));
             self.headphone_value
                 .set_text(&format!("{:.1} dB", state.hp_volume_db));
@@ -326,6 +368,11 @@ impl DevicePage {
         }
         let peaks = cadiswave_core::device_meter::selected_channels(snapshot);
         self.meters.set_peaks(peaks);
+        if peaks.is_none() {
+            self.reading.remove_css_class("cadiswave-reading");
+        } else {
+            self.reading.add_css_class("cadiswave-reading");
+        }
         self.reading.set_text(
             &peaks
                 .map(|p| {
@@ -339,7 +386,7 @@ impl DevicePage {
         );
         self.service
             .set_text(&crate::i18n::tr(super::status::service_key(
-                &snapshot.service_status,
+                snapshot.service_state,
             )));
         self.readiness
             .set_text(&crate::i18n::tr(if peaks.is_some() {

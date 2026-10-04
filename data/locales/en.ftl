@@ -310,3 +310,8 @@ delete-mix-confirm = Remove “{ $name }” and audio device “{ $device }”. 
 selected-device-detail = Selected { $name }: { $detail }
 mute-device = Mute { $name }
 unmute-device = Unmute { $name }
+monitor-mix-available = Open the device panel in Mixer to adjust the hardware monitor mix.
+
+hardware-mute-link = Follow hardware mute
+hardware-mute-link-target = Mute follows { $device }.
+hardware-mute-link-unavailable = Select a connected device before enabling this option.

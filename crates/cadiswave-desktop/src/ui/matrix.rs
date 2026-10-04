@@ -612,15 +612,15 @@ impl MatrixState {
                 if state.updating.get() {
                     return;
                 }
-                if let Some(choice) = names.borrow().get(row.index() as usize) {
-                    if choice != state.latest.borrow().desired.matrix.output(&mid) {
-                        (state.submit)(AppCommand::SetOutput {
-                            mix: mid.clone(),
-                            choice: choice.clone(),
-                        });
-                        if let Some(pop) = popup.upgrade() {
-                            pop.popdown();
-                        }
+                if let Some(choice) = names.borrow().get(row.index() as usize)
+                    && choice != state.latest.borrow().desired.matrix.output(&mid)
+                {
+                    (state.submit)(AppCommand::SetOutput {
+                        mix: mid.clone(),
+                        choice: choice.clone(),
+                    });
+                    if let Some(pop) = popup.upgrade() {
+                        pop.popdown();
                     }
                 }
             }
@@ -640,16 +640,16 @@ impl MatrixState {
         body.append(&gtk::Separator::new(gtk::Orientation::Horizontal));
         let (mid, weak) = (mix.id.clone(), Rc::downgrade(self));
         menu_button(&pop, &body, "Rename Mix…", move || {
-            if let Some(state) = weak.upgrade() {
-                if let Some(parent) = parent(&state.grid) {
-                    dialogs::edit_mix(
-                        &parent,
-                        &mid,
-                        state.latest.borrow().clone(),
-                        state.icons.clone(),
-                        state.submit.clone(),
-                    );
-                }
+            if let Some(state) = weak.upgrade()
+                && let Some(parent) = parent(&state.grid)
+            {
+                dialogs::edit_mix(
+                    &parent,
+                    &mid,
+                    state.latest.borrow().clone(),
+                    state.icons.clone(),
+                    state.submit.clone(),
+                );
             }
         });
         for (title, delta) in [("Move left", -1), ("Move right", 1)] {
@@ -672,15 +672,15 @@ impl MatrixState {
         }
         let (mid, weak) = (mix.id.clone(), Rc::downgrade(self));
         let remove = menu_button(&pop, &body, "Delete Mix", move || {
-            if let Some(state) = weak.upgrade() {
-                if let Some(parent) = parent(&state.grid) {
-                    dialogs::remove_mix(
-                        &parent,
-                        &mid,
-                        state.latest.borrow().clone(),
-                        state.submit.clone(),
-                    );
-                }
+            if let Some(state) = weak.upgrade()
+                && let Some(parent) = parent(&state.grid)
+            {
+                dialogs::remove_mix(
+                    &parent,
+                    &mid,
+                    state.latest.borrow().clone(),
+                    state.submit.clone(),
+                );
             }
         });
         remove.add_css_class("error");

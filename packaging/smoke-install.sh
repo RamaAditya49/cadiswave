@@ -86,11 +86,17 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
     # the latter advertises host service-manager tools in a manager-free fixture.
     # Nix wrappers and their store dependencies are available read-only; neither
     # /run/current-system nor a home/profile directory is exposed to the sandbox.
-    mkdir -p "$output/bin"
+    mkdir -p "$output/bin" "$output/lib"
     for tool in bash env dbus-run-session dbus-daemon dbus-uuidgen Xvfb xdotool import jq pipewire pipewire-pulse wireplumber pw-dump pw-cli pw-link pw-loopback pw-cat pw-top pactl pacat wpctl amixer aplay timeout sleep mkdir chmod cat cp cmp rm sha256sum date tee; do
         executable=$(type -P "$tool") || { echo "Missing smoke capability: $tool" >&2; exit 1; }
         executable=$(realpath "$executable")
-        ln -s -- "$executable" "$output/bin/$tool"
+        case "$executable" in
+            /usr/*|/bin/*|/nix/store/*) ln -s -- "$executable" "$output/bin/$tool" ;;
+            *) cp -- "$executable" "$output/bin/$tool"
+               while IFS= read -r library; do
+                   case "$library" in /usr/*|/lib/*|/lib64/*|/nix/store/*) ;; *) cp -L -- "$library" "$output/lib/" ;; esac
+               done < <(ldd "$executable" | awk '/=> \// {print $3}') ;;
+        esac
     done
     command -v bwrap >/dev/null || { echo 'Missing bubblewrap; use a disposable namespace-capable VM/container.' >&2; exit 1; }
     dbus-uuidgen > "$output/machine-id"
@@ -108,7 +114,7 @@ if [[ ${1-} != --inside && ${1-} != --session ]]; then
     bwrap_args+=(--dev /dev --tmpfs /tmp --dir /run --dir /var --dir /var/tmp
         --bind "$output" /work --ro-bind "$prefix" /installed --ro-bind "$driver" /smoke-control
         --ro-bind "$source_root/packaging/smoke-install.sh" /smoke-install.sh
-        --setenv PATH /work/bin --setenv HOME /work/home
+        --setenv PATH /work/bin --setenv LD_LIBRARY_PATH /work/lib --setenv HOME /work/home
         --setenv XDG_CONFIG_HOME /work/config --setenv XDG_DATA_HOME /work/data
         --setenv XDG_STATE_HOME /work/state --setenv XDG_CACHE_HOME /work/cache
         --setenv XDG_RUNTIME_DIR /work/run --setenv CADISWAVE_SMOKE_SANDBOX 1
@@ -389,6 +395,9 @@ sleep 1
 if visible_window; then echo '--hide exposed a window despite an active tray host.' >&2; exit 1; fi
 /smoke-control tray /work/tray-item.json open
 wait_command visible_window
+screenshot device-startup
+/smoke-control window-action 1 mixer
+sleep 1
 screenshot matrix-startup
 printf '%s\n' CADISWAVE_SMOKE_GUI_READY
 start_tone
@@ -446,6 +455,7 @@ assert_state '.cells["music.personal"].volume == 0.4'
 sleep 1
 screenshot settings
 /smoke-control ui dump > /work/evidence/accessibility-settings.txt
+/smoke-control window-action 1 mixer
 /smoke-control window-action 1 save-scene-as
 sleep 1
 screenshot save-scene-dialog

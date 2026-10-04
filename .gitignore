@@ -17,3 +17,10 @@ __pycache__/
 /result
 /result-*
 /compile_commands.json
+
+# Keep private design references outside the source tree.
+*.zip
+/mockup/
+/mockups/
+/reference/
+/references/

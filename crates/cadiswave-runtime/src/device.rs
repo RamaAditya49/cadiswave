@@ -153,6 +153,7 @@ pub struct VendorDevice {
     pub unit: UnitId,
     transport: Box<dyn Transport>,
     usb_info: Option<DeviceInfo>,
+    usb_serial: Option<String>,
 }
 impl VendorDevice {
     pub fn scan() -> Result<Vec<(ProfileId, u8, u8)>> {
@@ -187,6 +188,12 @@ impl VendorDevice {
                 ));
             }
             let handle = device.open().map_err(usb_error)?;
+            let usb_serial = descriptor.serial_number_string_index().and_then(|_| {
+                handle
+                    .read_serial_number_string_ascii(&descriptor)
+                    .ok()
+                    .filter(|serial| !serial.is_empty())
+            });
             let (windex, usb_info) = if let Some(legacy) = p.legacy {
                 (legacy.windex, None)
             } else {
@@ -214,6 +221,7 @@ impl VendorDevice {
             return Ok(Self {
                 unit,
                 usb_info,
+                usb_serial,
                 transport: Box::new(UsbTransport {
                     handle,
                     profile: unit.profile,
@@ -291,7 +299,10 @@ impl VendorDevice {
             )
         })?;
         let count = self.read_raw(p.wvalue_devinfo, &mut bytes[..p.devinfo_len])?;
-        protocol::decode_device_info(self.unit.profile, &bytes[..count])
+        let mut info = protocol::decode_device_info(self.unit.profile, &bytes[..count])?;
+        // Capture metadata uses the USB descriptor serial, not the vendor display identifier.
+        info.serial = self.usb_serial.clone().unwrap_or_default();
+        Ok(info)
     }
     pub fn read_meters(&mut self) -> Result<MeterLevels> {
         let mut bytes = [0; protocol::MAX_METER_LEN];
@@ -699,7 +710,23 @@ impl UnitBackend for SyncedDevice {
         } else {
             self.vendor.write_config_raw(config.as_bytes())?;
         }
-        let state = config.state();
+        let expected = config.state();
+        let state = self.vendor.read_config()?.state();
+        for setting in settings {
+            let confirmed = match setting {
+                DeviceSetting::GainRaw(_) => state.gain_raw == expected.gain_raw,
+                DeviceSetting::Mute(_) => state.muted == expected.muted,
+                DeviceSetting::Phantom(_) => state.phantom == expected.phantom,
+                DeviceSetting::HeadphoneDb(_) => state.hp_volume_db == expected.hp_volume_db,
+                DeviceSetting::MonitorMix(_) => state.monitor_mix == expected.monitor_mix,
+                DeviceSetting::LowImpedance(_) => state.low_impedance == expected.low_impedance,
+            };
+            if !confirmed {
+                return Err(OperationError::unavailable(
+                    "Hardware readback did not confirm the requested setting",
+                ));
+            }
+        }
         self.mirror
             .requested(&state, self.vendor.unit.profile, settings);
         self.mirror.committed(state.clone());

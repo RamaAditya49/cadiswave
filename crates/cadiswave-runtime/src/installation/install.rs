@@ -533,14 +533,14 @@ fn prepare(
         let mut original = BTreeMap::new();
         for path in &snapshot.files {
             let current = target(&pinned[path.parent().unwrap()], path.file_name().unwrap())?;
-            if let Some(current) = &current {
-                if old.as_ref().is_none_or(|old| {
+            if let Some(current) = &current
+                && old.as_ref().is_none_or(|old| {
                     !old.identities
                         .iter()
                         .any(|(p, h)| p == path && h == &current.digest)
-                }) {
-                    return Err(invalid("Destination changed after installation preflight"));
-                }
+                })
+            {
+                return Err(invalid("Destination changed after installation preflight"));
             }
             original.insert(path.clone(), current);
         }
@@ -597,10 +597,10 @@ fn prepare(
     parent_unchanged(bootstrap, &bootstrap_fd)?;
     let authority = target(&bootstrap_fd, OsStr::new(AUTHORITY))?
         .ok_or_else(|| invalid("Installation authority disappeared"))?;
-    if let Some(original) = existing_authority {
-        if original != authority {
-            return Err(invalid("Installation authority changed during preflight"));
-        }
+    if let Some(original) = existing_authority
+        && original != authority
+    {
+        return Err(invalid("Installation authority changed during preflight"));
     }
     Ok(Pending {
         bootstrap: bootstrap.to_owned(),

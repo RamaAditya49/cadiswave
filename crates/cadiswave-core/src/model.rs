@@ -223,6 +223,15 @@ impl Source {
             extra: Map::new(),
         }
     }
+    pub fn hardware_mute_serial(&self) -> Option<&str> {
+        if self.kind != SourceKind::Device {
+            return None;
+        }
+        self.extra
+            .get("hardware_mute_serial")
+            .and_then(Value::as_str)
+            .filter(|serial| !serial.is_empty() && serial.len() <= 128 && serial.is_ascii())
+    }
     pub fn catch_all(&self) -> bool {
         self.extra
             .get("catch_all")
@@ -237,6 +246,7 @@ pub struct SourceEdit {
     pub match_app_names: Option<Vec<String>>,
     pub node_name: Option<String>,
     pub catch_all: Option<bool>,
+    pub hardware_mute_serial: Option<Option<String>>,
     pub group: Option<String>,
 }
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -766,6 +776,14 @@ pub enum SetupPhase {
     ActivationFailed(String),
     Ready,
 }
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ServiceState {
+    #[default]
+    Unknown,
+    Running,
+    Stopped,
+    Failed,
+}
 #[derive(Debug, Clone)]
 pub struct AppSnapshot {
     pub revision: u64,
@@ -784,6 +802,7 @@ pub struct AppSnapshot {
     pub autostart: bool,
     pub hidden_autostart: bool,
     pub service_status: String,
+    pub service_state: ServiceState,
     pub setup_required: bool,
     pub scene_outcome: Option<CommandOutcome>,
     pub unit_intents: Arc<IndexMap<UnitId, Vec<DeviceSetting>>>,
@@ -812,6 +831,7 @@ impl Default for AppSnapshot {
             autostart: false,
             hidden_autostart: false,
             service_status: String::new(),
+            service_state: ServiceState::Unknown,
             setup_required: false,
             scene_outcome: None,
             unit_intents: Arc::default(),

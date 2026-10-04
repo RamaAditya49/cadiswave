@@ -96,13 +96,12 @@ pub fn run(args: Vec<String>) -> i32 {
         }
     });
     let code: i32 = application.run_with_args(&args).into();
-    if let Some(ui) = state.borrow().as_ref() {
-        if let Some(mut tail) = ui.event_tail.borrow_mut().take() {
-            if let Err(error) = tail.stop() {
-                eprintln!("cadiswave: {error}");
-                failed.set(true);
-            }
-        }
+    if let Some(ui) = state.borrow().as_ref()
+        && let Some(mut tail) = ui.event_tail.borrow_mut().take()
+        && let Err(error) = tail.stop()
+    {
+        eprintln!("cadiswave: {error}");
+        failed.set(true);
     }
     // Application::shutdown must not join workers. Even unusual loop exits drain here,
     // after GTK has returned, and retain ownership of temporary inspection threads.
@@ -132,6 +131,9 @@ pub fn run(args: Vec<String>) -> i32 {
     if failed.get() { 1 } else { code }
 }
 
+pub(crate) fn shortcuts_allowed(focus: Option<&gtk::Widget>) -> bool {
+    focus.is_none_or(|widget| !widget.is::<gtk::Editable>() && !widget.is::<gtk::TextView>())
+}
 struct AppUi {
     application: adw::Application,
     paths: RuntimePaths,
@@ -184,6 +186,7 @@ struct AppUi {
 
 impl AppUi {
     fn new(application: adw::Application, paths: RuntimePaths, handle: RuntimeHandle) -> Rc<Self> {
+        adw::StyleManager::default().set_color_scheme(adw::ColorScheme::ForceDark);
         if let Ok(css) = paths.data_file("style.css") {
             let provider = gtk::CssProvider::new();
             provider.load_from_path(css);
@@ -292,11 +295,6 @@ impl AppUi {
                 .bidirectional()
                 .sync_create()
                 .build();
-            if let Ok(condition) = adw::BreakpointCondition::parse("max-width: 900sp") {
-                let breakpoint = adw::Breakpoint::new(condition);
-                breakpoint.add_setter(&split, "collapsed", Some(&true.to_value()));
-                window.add_breakpoint(breakpoint);
-            }
             let matrix = MatrixView::new(icons.clone(), submit.clone());
             let sidebar = Sidebar::new(icons.clone(), submit.clone());
             split.set_content(Some(&matrix.widget));
@@ -307,6 +305,7 @@ impl AppUi {
                 crate::ui::device::controls::DeviceControls::new(handle.clone()),
                 i18n.clone(),
             );
+            device_page.install_breakpoints(&window, &split);
             pages.add_titled(
                 &device_page.widget,
                 Some("device"),
@@ -403,8 +402,9 @@ impl AppUi {
             if ui.stopped.get() {
                 return glib::ControlFlow::Break;
             }
-            ui.device_page.set_narrow(ui.window.width() < 1100);
-            if let Some(tail) = ui.event_tail.borrow().as_ref() {
+            if ui.window.is_visible()
+                && let Some(tail) = ui.event_tail.borrow().as_ref()
+            {
                 ui.device_page.set_events(&tail.latest());
             }
             glib::ControlFlow::Continue
@@ -456,6 +456,16 @@ impl AppUi {
             }
         });
         ui.window.add_action(&compact_action);
+        let quit = gio::SimpleAction::new("quit", None);
+        let weak = Rc::downgrade(&ui);
+        quit.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                ui.request_quit();
+            }
+        });
+        ui.application.add_action(&quit);
+        ui.application
+            .set_accels_for_action("app.quit", &["<Primary>q"]);
         let present = gio::SimpleAction::new("present", None);
         let weak = Rc::downgrade(&ui);
         present.connect_activate(move |_, _| {
@@ -465,6 +475,16 @@ impl AppUi {
             }
         });
         ui.application.add_action(&present);
+        let panel = gio::SimpleAction::new("device-panel", None);
+        let weak = Rc::downgrade(&ui);
+        panel.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                ui.device_settings.dialog.close();
+                ui.pages.set_visible_child_name("mixer");
+                ui.split.set_show_sidebar(true);
+            }
+        });
+        ui.window.add_action(&panel);
         let mixer = gio::SimpleAction::new("mixer", None);
         let weak = Rc::downgrade(&ui);
         mixer.connect_activate(move |_, _| {
@@ -498,11 +518,7 @@ impl AppUi {
             let Some(ui) = weak.upgrade() else {
                 return glib::Propagation::Proceed;
             };
-            if gtk::prelude::GtkWindowExt::focus(&ui.window).is_some_and(|focus| {
-                focus.is::<gtk::Entry>()
-                    || focus.is::<gtk::TextView>()
-                    || focus.is::<gtk::SpinButton>()
-            }) {
+            if !shortcuts_allowed(gtk::prelude::GtkWindowExt::focus(&ui.window).as_ref()) {
                 return glib::Propagation::Proceed;
             }
             if modifiers.contains(gtk::gdk::ModifierType::CONTROL_MASK) && key == gtk::gdk::Key::r {
@@ -538,10 +554,10 @@ impl AppUi {
         let save = gio::SimpleAction::new("save-scene-as", None);
         let weak = Rc::downgrade(&ui);
         save.connect_activate(move |_, _| {
-            if let Some(ui) = weak.upgrade() {
-                if !ui.shutdown_requested.get() {
-                    dialogs::save_scene(ui.window.upcast_ref(), ui.submit.clone());
-                }
+            if let Some(ui) = weak.upgrade()
+                && !ui.shutdown_requested.get()
+            {
+                dialogs::save_scene(ui.window.upcast_ref(), ui.submit.clone());
             }
         });
         ui.window.add_action(&save);
@@ -700,8 +716,8 @@ impl AppUi {
         }
         let maximized = self.window.is_maximized();
         let changes = PreferencesEdit {
-            width: (!maximized).then(|| self.window.width().max(820)),
-            height: (!maximized).then(|| self.window.height().max(480)),
+            width: (!maximized).then(|| self.window.width().max(800)),
+            height: (!maximized).then(|| self.window.height().max(600)),
             maximized: Some(maximized),
             ..Default::default()
         };
@@ -794,7 +810,7 @@ impl AppUi {
         self.setup_generation
             .set(self.setup_generation.get().wrapping_add(1));
         if let Some(dialog) = self.setup_dialog.borrow_mut().take() {
-            dialog.close();
+            dialog.force_close();
         }
         let confirm = Rc::downgrade(self);
         let closed = Rc::downgrade(self);
@@ -851,19 +867,18 @@ impl AppUi {
                     return;
                 }
                 if self.uninstall_command.get() == Some(id) {
-                    if let CommandOutcome::Rejected(error) = &result {
-                        if !self.uninstall_result.get() {
-                            if let Some(dialog) = self.uninstall.borrow().as_ref() {
-                                dialog.failed(&error.to_string());
-                            }
-                        }
+                    if let CommandOutcome::Rejected(error) = &result
+                        && !self.uninstall_result.get()
+                        && let Some(dialog) = self.uninstall.borrow().as_ref()
+                    {
+                        dialog.failed(&error.to_string());
                     }
                     self.uninstall_command.set(None);
                 } else if self.prepare_command.get() == Some(id) {
-                    if let CommandOutcome::Rejected(error) = &result {
-                        if let Some(registry) = self.registry.borrow().as_ref() {
-                            registry.set_uninstall_state(&format!("error:{error}"));
-                        }
+                    if let CommandOutcome::Rejected(error) = &result
+                        && let Some(registry) = self.registry.borrow().as_ref()
+                    {
+                        registry.set_uninstall_state(&format!("error:{error}"));
                     }
                 } else {
                     match result {
@@ -931,10 +946,10 @@ impl AppUi {
                         self.error("CadisWave could not start", &error.to_string());
                         return;
                     }
-                    if let Some(registry) = self.registry.borrow().as_ref() {
-                        if self.prepare_command.get().is_some() {
-                            registry.set_uninstall_state(&format!("error:{error}"));
-                        }
+                    if let Some(registry) = self.registry.borrow().as_ref()
+                        && self.prepare_command.get().is_some()
+                    {
+                        registry.set_uninstall_state(&format!("error:{error}"));
                     }
                     if let Some(dialog) = self
                         .uninstall
@@ -960,8 +975,8 @@ impl AppUi {
         *self.latest.borrow_mut() = snapshot.clone();
         if snapshot.revision > 0 && !self.geometry_restored.replace(true) {
             self.window.set_default_size(
-                snapshot.preferences.width.max(820),
-                snapshot.preferences.height.max(480),
+                snapshot.preferences.width.max(800),
+                snapshot.preferences.height.max(600),
             );
             if snapshot.preferences.maximized {
                 self.window.maximize();
@@ -1122,6 +1137,7 @@ impl AppUi {
     }
 
     fn render_setup(self: &Rc<Self>, phase: &SetupPhase) {
+        log::debug!("Rendering setup phase: {phase:?}");
         if self.stopped.get()
             || self.shutdown_requested.get()
             || self
@@ -1139,12 +1155,24 @@ impl AppUi {
         let generation = self.setup_generation.get().wrapping_add(1);
         self.setup_generation.set(generation);
         if let Some(dialog) = self.setup_dialog.borrow_mut().take() {
-            dialog.close();
+            dialog.force_close();
         }
         if phase == &SetupPhase::Ready {
+            self.set_status("");
             if !self.main_presented.get() {
                 self.present_main_window(self.start_hidden.get());
             }
+            return;
+        }
+        if matches!(
+            phase,
+            SetupPhase::Checking | SetupPhase::Running | SetupPhase::Starting
+        ) {
+            self.set_status(match phase {
+                SetupPhase::Checking => "Checking CadisWave setup",
+                SetupPhase::Running => "Setting Up CadisWave",
+                _ => "Starting CadisWave",
+            });
             return;
         }
         let (heading, body) = match phase {
@@ -1334,6 +1362,7 @@ fn application_menu() -> gio::Menu {
         Some(&crate::i18n::translate("Reload interface")),
         Some("win.reload-interface"),
     );
+    menu.append(Some(&crate::i18n::translate("Quit")), Some("app.quit"));
     menu.append(
         Some(&crate::i18n::translate("Uninstall CadisWave…")),
         Some("app.uninstall"),
@@ -1346,6 +1375,128 @@ mod tests {
     use super::*;
     use crate::ui::test_support::{Rig, descendants};
     use std::time::Instant;
+
+    #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn device_gallery_renders_both_languages_and_small_windows() {
+        adw::init().unwrap();
+        let mut unit = crate::ui::test_support::unit("Gallery", 2, -12.0);
+        if let Observation::Known(state) = &mut unit.state {
+            state.gain_raw = 50 * 256;
+        }
+        let rig = Rig::new(serde_json::json!({}), vec![unit]);
+        let application = adw::Application::builder()
+            .application_id("io.github.RamaAditya49.CadisWave.Gallery")
+            .build();
+        application.register(None::<&gio::Cancellable>).unwrap();
+        let ui = AppUi::new(application, rig.paths(), rig.handle());
+        let data = crate::ui::test_support::asset_paths().data;
+        let css = if data.join("style.css").exists() {
+            data.join("style.css")
+        } else {
+            data.join("data/style.css")
+        };
+        let provider = gtk::CssProvider::new();
+        provider.load_from_path(css);
+        gtk::style_context_add_provider_for_display(
+            &gtk::gdk::Display::default().unwrap(),
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        let output = std::env::var_os("CADISWAVE_GALLERY_DIR")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("/work/evidence/device-gallery"));
+        std::fs::create_dir_all(&output).unwrap();
+        fn settle() {
+            let until = Instant::now() + Duration::from_millis(250);
+            while Instant::now() < until {
+                while glib::MainContext::default().pending() {
+                    glib::MainContext::default().iteration(false);
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+        }
+        let shot = |name: &str| {
+            settle();
+            let args = vec![
+                "-window".into(),
+                "root".into(),
+                output
+                    .join(format!("{name}.png"))
+                    .to_string_lossy()
+                    .into_owned(),
+            ];
+            cadiswave_runtime::process::CommandRunner::default()
+                .run("import", &args, Duration::from_secs(3))
+                .unwrap();
+        };
+        ui.window.set_default_size(1280, 800);
+        ui.window.present();
+        settle();
+        for (name, language) in [
+            ("en", cadiswave_core::locale::LanguageChoice::English),
+            ("id", cadiswave_core::locale::LanguageChoice::Indonesian),
+        ] {
+            let mut snapshot = (*rig.snapshot()).clone();
+            snapshot.service_state = ServiceState::Running;
+            let mut source = Source::new("Wave XLR".into(), SourceKind::Device);
+            source.id = SourceId::new("gallery").unwrap();
+            source.node_name = "fixture_wave".into();
+            Arc::make_mut(&mut snapshot.desired)
+                .sources
+                .insert(source.id.clone(), source);
+            Arc::make_mut(&mut snapshot.captures).push(CaptureSnapshot {
+                identity: NodeIdentity {
+                    server_cookie: 1,
+                    object_serial: "1".into(),
+                },
+                node_id: 1,
+                node_name: "fixture_wave".into(),
+                name: "Wave XLR".into(),
+                muted: Observation::Known(false),
+                channels: Some(2),
+                properties: serde_json::json!({"device.serial":"Gallery"})
+                    .as_object()
+                    .unwrap()
+                    .clone(),
+            });
+            Arc::make_mut(&mut snapshot.channel_meters).insert(
+                "src:gallery".into(),
+                cadiswave_core::pcm::ChannelPeaks::Stereo {
+                    left: 0.12,
+                    right: 0.08,
+                },
+            );
+
+            Arc::make_mut(&mut snapshot.preferences).language = language;
+            *ui.latest.borrow_mut() = Arc::new(snapshot);
+            ui.render_widgets();
+            shot(&format!("device-{name}"));
+            ui.device_settings.dialog.present(Some(&ui.window));
+            shot(&format!("settings-{name}"));
+            ui.device_settings.dialog.close();
+            settle();
+            ui.compact_window.present();
+            shot(&format!("compact-{name}"));
+            ui.compact_window.set_visible(false);
+        }
+        ui.window.set_default_size(1024, 768);
+        shot("device-1024");
+        ui.window.set_default_size(800, 600);
+        shot("device-800");
+        let dialog = adw::AlertDialog::builder()
+            .heading(crate::i18n::tr("rate-confirm-title"))
+            .body(crate::i18n::tr("rate-confirm-body"))
+            .build();
+        dialog.add_response("cancel", &crate::i18n::tr("rate-confirm-cancel"));
+        dialog.add_response("apply", &crate::i18n::tr("rate-confirm-apply"));
+        dialog.set_response_enabled("apply", false);
+        dialog.present(Some(&ui.window));
+        shot("rate-confirm-controlled");
+        dialog.close();
+        assert_eq!(rig.device_command_count(), 0);
+        ui.window.set_visible(false);
+    }
 
     fn fixture() -> (Rig, Rc<AppUi>) {
         adw::init().expect("private GTK display");
@@ -1381,6 +1532,28 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn setup_ready_closes_a_dialog_before_its_open_animation_finishes() {
+        let (rig, ui) = fixture();
+        ui.activate();
+        until(&rig, &ui, || ui.main_presented.get());
+        ui.render_setup(&SetupPhase::Checking);
+        ui.render_setup(&SetupPhase::Ready);
+        let deadline = Instant::now() + Duration::from_millis(500);
+        while Instant::now() < deadline {
+            while glib::MainContext::default().pending() {
+                glib::MainContext::default().iteration(false);
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert!(
+            ui.window.visible_dialog().is_none(),
+            "completed setup leaves a modal dialog"
+        );
+        ui.window.set_visible(false);
+    }
+
+    #[test]
     fn application_menu_offers_interface_reload() {
         let menu = application_menu();
         let actions: Vec<_> = (0..menu.n_items())
@@ -1396,6 +1569,7 @@ mod tests {
                 "win.about",
                 "win.settings",
                 "win.reload-interface",
+                "app.quit",
                 "app.uninstall"
             ]
         );

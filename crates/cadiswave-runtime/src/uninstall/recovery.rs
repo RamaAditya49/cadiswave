@@ -668,12 +668,12 @@ pub(super) fn login_uid() -> Result<u32> {
     if let Ok(user) = std::env::var("DOAS_USER") {
         for line in fs::read_to_string("/etc/passwd")?.lines() {
             let fields: Vec<_> = line.split(':').collect();
-            if fields.len() >= 7 && fields[0] == user {
-                if let Ok(uid) = fields[2].parse::<u32>() {
-                    if uid != 0 {
-                        return Ok(uid);
-                    }
-                }
+            if fields.len() >= 7
+                && fields[0] == user
+                && let Ok(uid) = fields[2].parse::<u32>()
+                && uid != 0
+            {
+                return Ok(uid);
             }
         }
         return Err(invalid("Original doas login account is unavailable"));

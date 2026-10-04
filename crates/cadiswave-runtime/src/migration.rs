@@ -37,7 +37,8 @@ fn identity(fd: &OwnedFd) -> Result<(u64, u64)> {
     let stat = rustix::fs::fstat(fd).map_err(io_error)?;
     Ok((stat.st_dev, stat.st_ino))
 }
-fn read(dir: &OwnedFd, name: &str) -> Result<Option<(Vec<u8>, (u64, u64))>> {
+type FileData = (Vec<u8>, (u64, u64));
+fn read(dir: &OwnedFd, name: &str) -> Result<Option<FileData>> {
     let fd = match rustix::fs::openat(
         dir,
         name,

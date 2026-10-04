@@ -21,6 +21,9 @@ const UNSUPPORTED: &str = "No supported init system detected. Configure the nati
 
 /// Explicit host boundary used by isolated fixtures as well as the real adapter.
 pub trait HostCommands: Send + Sync {
+    fn connected_profiles(&self) -> Result<Vec<cadiswave_core::profiles::ProfileId>> {
+        Ok(Vec::new())
+    }
     fn available(&self, program: &str) -> bool;
     fn run(&self, program: &str, args: &[String], timeout: Duration) -> Result<Output>;
     fn package_owner(&self, files: &[PathBuf]) -> Result<Option<InstallMethod>>;
@@ -30,6 +33,12 @@ pub trait HostCommands: Send + Sync {
 }
 pub struct NativeCommands;
 impl HostCommands for NativeCommands {
+    fn connected_profiles(&self) -> Result<Vec<cadiswave_core::profiles::ProfileId>> {
+        Ok(crate::device::VendorDevice::scan()?
+            .into_iter()
+            .map(|(profile, _, _)| profile)
+            .collect())
+    }
     fn available(&self, program: &str) -> bool {
         find_program(program).is_some()
     }
@@ -488,10 +497,8 @@ fn runit(host: &HostContext) -> bool {
     host.commands.available("sv") && host.runit_link.parent().is_some_and(Path::is_dir)
 }
 fn observe_runit(paths: &RuntimePaths, host: &HostContext) -> Result<Option<(PathBuf, bool)>> {
-    if fs::symlink_metadata(&host.runit_link).is_err() {
-        if !host.runit_link.try_exists()? {
-            return Ok(None);
-        }
+    if fs::symlink_metadata(&host.runit_link).is_err() && !host.runit_link.try_exists()? {
+        return Ok(None);
     }
     let target = fs::canonicalize(&host.runit_link)?;
     if target != fs::canonicalize(&host.runit_definition)? {

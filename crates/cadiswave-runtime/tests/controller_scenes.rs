@@ -120,10 +120,10 @@ impl Fixture {
         let (completion_send, completed) = mpsc::channel();
         let pump = thread::spawn(move || {
             while let Ok(event) = block_on(events.recv()) {
-                if let RuntimeEvent::CommandFinished { id, result } = event {
-                    if completion_send.send((id, result)).is_err() {
-                        break;
-                    }
+                if let RuntimeEvent::CommandFinished { id, result } = event
+                    && completion_send.send((id, result)).is_err()
+                {
+                    break;
                 }
             }
         });

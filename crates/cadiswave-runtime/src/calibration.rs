@@ -235,14 +235,14 @@ pub struct CalibrationWorker {
     requests: Option<mpsc::Sender<Request>>,
     thread: Option<JoinHandle<()>>,
 }
+type CaptureReader =
+    Arc<dyn Fn(&CalibrationToken, u32, Arc<AtomicBool>) -> Result<Vec<u8>> + Send + Sync>;
 impl CalibrationWorker {
     pub fn start() -> Result<(Self, mpsc::Receiver<CalibrationEvent>)> {
         Self::start_with(Arc::new(capture_token))
     }
     pub(crate) fn start_with(
-        capture: Arc<
-            dyn Fn(&CalibrationToken, u32, Arc<AtomicBool>) -> Result<Vec<u8>> + Send + Sync,
-        >,
+        capture: CaptureReader,
     ) -> Result<(Self, mpsc::Receiver<CalibrationEvent>)> {
         let (requests, incoming) = mpsc::channel::<Request>();
         let (events, receiver) = mpsc::channel();
@@ -323,10 +323,10 @@ impl CalibrationWorker {
     }
     pub fn cancel(&self, token: &CalibrationToken) -> Result<()> {
         let state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some((active, cancel)) = &state.active {
-            if active == token {
-                cancel.store(true, Ordering::Release);
-            }
+        if let Some((active, cancel)) = &state.active
+            && active == token
+        {
+            cancel.store(true, Ordering::Release);
         }
         Ok(())
     }
