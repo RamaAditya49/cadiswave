@@ -1,4 +1,5 @@
 //! Single-owner PipeWire reconciliation. Only stop may retry cleanup on its caller.
+mod fx_plugins;
 use crate::{
     meter::{CaptureReadiness, MeterTarget},
     paths::RuntimePaths,
@@ -531,6 +532,7 @@ pub trait GraphBackend: Send {
         description: Option<&str>,
     ) -> Result<Box<dyn RoutingChild>>;
     fn spawn_filter(&mut self, config: &Path) -> Result<Box<dyn RoutingChild>>;
+    fn resolve_filter_plugins(&self, _: &mut Value) {}
 }
 
 pub struct SubprocessPipeWire {
@@ -560,6 +562,13 @@ impl SubprocessPipeWire {
     }
 }
 impl GraphBackend for SubprocessPipeWire {
+    fn resolve_filter_plugins(&self, config: &mut Value) {
+        fx_plugins::resolve(
+            config,
+            self.paths.prefix.as_deref(),
+            std::env::var_os("LADSPA_PATH").as_deref(),
+        );
+    }
     fn snapshot(&mut self) -> Result<GraphSnapshot> {
         let objects = self.json("pw-dump", &[])?;
         let cookie = GraphSnapshot::core_cookie(&objects)?;
@@ -1751,6 +1760,7 @@ impl Reconciler {
                     let props = &mut filter["args"]["capture.props"];
                     props["node.autoconnect"] = json!(false);
                     props["target.object"] = json!(spec.raw.object_serial);
+                    self.backend.resolve_filter_plugins(&mut config);
                     let mut file = tempfile::Builder::new()
                         .prefix("cadiswave-fx-")
                         .suffix(".conf")

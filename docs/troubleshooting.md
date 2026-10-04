@@ -41,6 +41,12 @@ A firmware-unresponsive unit may require a deliberate power cycle. Lower monitor
 - After PipeWire recreates nodes, allow reconciliation to observe the replacements, restore and confirm master levels, and re-establish links. Merely seeing a loopback process is not enough.
 - For DSP routes, ensure the SWH LADSPA plugins are installed and available through `LADSPA_PATH` or the distribution's normal plugin directory. A missing plugin is not cured by raising gain. Calibration samples raw capture, not a processed mix; accepting a proposal is a separate action.
 
+An installed user-prefix application can also load trusted SWH plugins from `<prefix>/lib/ladspa`.
+This applies to `gate_1410.so` and `sc4m_1916.so` for Gate and Compressor.
+Use files from the distribution's verified SWH package.
+An explicit `LADSPA_PATH` keeps its existing search behavior.
+The application does not download plugins or change effect settings to bypass a missing dependency.
+
 For feedback or doubled audio, remove any external duplicate path first. Never feed a voice application's return audio into its own microphone mix. Hardware direct monitoring can coexist with software monitoring and sound doubled even when the matrix owns only one application stream.
 
 ## Robotic capture, crackles and xruns

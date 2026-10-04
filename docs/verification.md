@@ -184,8 +184,8 @@ Feature implementation used release payloads staged and tested in a private name
 ## Device settings host update
 
 Rama authorized the host update after the feature implementation on 2026-10-04.
-The user-prefix installation now contains the tested `eb77ee9` binaries.
-The desktop and capture daemon run those binaries; process executable hashes match the release build.
+The first host update installed the tested `eb77ee9` binaries in the user prefix.
+Desktop and capture daemon executable hashes matched that release build.
 The installer check passed against the new installation receipt.
 
 The update retained a private backup of the previous payload and configuration outside Git.
@@ -203,6 +203,35 @@ The unmapped original Wave XLR controls remain unavailable.
 
 The legacy Python source and configuration remain recoverable outside the active native source tree.
 See [migration](migration.md) for activation, processed capture mapping, and rollback instructions.
+
+## Minimum window size and FX dependency correction
+
+The minimum main window size is now 1024 by 720 logical pixels.
+Preference, geometry, and private GTK viewport checks passed.
+The inspected gallery keeps the mute button, gain control, slider, and phantom control visible at that minimum.
+The host desktop runs the new build. Its executable hash matches the release binary.
+Live AT-SPI inspection confirmed a visible window above the minimum size.
+
+The host reported `Effects unavailable; retrying shortly` because the required SWH plugins were absent.
+The previous installation smoke used staged dependencies and did not establish their availability on the host.
+The correction resolves trusted installed-prefix files for Gate and Compressor before starting the filter child.
+An explicit `LADSPA_PATH` retains its existing behavior.
+
+Four resolver tests and 50 routing and graph regression tests passed.
+Private native DSP checks loaded real plugins for Meeting, Podcast, and Streaming.
+Each preset retained its owned nodes, stereo input links, and running filter child.
+Formatting, workspace lint, and locked release binary builds passed.
+
+The host received the two required libraries from the verified Ubuntu SWH package, with its copyright file.
+The live filter configuration uses both installed library paths without a `LADSPA_PATH` override.
+The filter child and its owned nodes remain present; the routing error is absent from the visible interface.
+The existing muted input retains its raw input link. No host microphone recording was started.
+
+The desktop and capture daemon executable hashes match the new release build.
+The installation receipt check passed after replacement.
+Default input, default output, input mute, input volume, and application configuration remain unchanged.
+Writable ALSA controls and audio service invocation identities remain unchanged.
+The previous payload, configuration, and library directory mode remain backed up outside Git.
 
 ## Selected application icon
 
