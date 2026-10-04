@@ -74,7 +74,7 @@ fn activate(path: &str, action: &str, parameter: Option<&str>) -> Result {
     Ok(())
 }
 fn state(action: &str) -> Result<Value> {
-    if !matches!(action, "snapshot" | "scenes" | "levels") {
+    if !matches!(action, "snapshot" | "scenes" | "levels" | "microphone-test") {
         return Err("Expected a JSON read action".into());
     }
     // Read actions refresh their public state when activated.
@@ -98,6 +98,53 @@ fn state(action: &str) -> Result<Value> {
     let value = boxed.as_variant().ok_or("Action state is not a variant")?;
     let text = value.str().ok_or("Action state is not JSON text")?;
     Ok(serde_json::from_str(text)?)
+}
+fn is_microphone_child(cmdline: &[u8]) -> bool {
+    let fields: Vec<_> = cmdline.split(|byte| *byte == 0).collect();
+    fields
+        .iter()
+        .any(|field| field.rsplit(|byte| *byte == b'/').next() == Some(b"pw-cat".as_slice()))
+        && [
+            b"cadiswave_mic_test".as_slice(),
+            b"cadiswave_calibration".as_slice(),
+        ]
+        .iter()
+        .any(|label| {
+            fields
+                .iter()
+                .any(|field| field.windows(label.len()).any(|part| part == *label))
+        })
+}
+fn assert_no_microphone_child() -> Result {
+    for entry in fs::read_dir("/proc")? {
+        let entry = entry?;
+        if !entry
+            .file_name()
+            .to_string_lossy()
+            .bytes()
+            .all(|byte| byte.is_ascii_digit())
+        {
+            continue;
+        }
+        match fs::read(entry.path().join("cmdline")) {
+            Ok(cmdline) if is_microphone_child(&cmdline) => {
+                return Err("Owned microphone test child is still running".into());
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    let graph = graph()?;
+    if graph.iter().any(|entry| {
+        matches!(
+            entry["info"]["props"]["node.name"].as_str(),
+            Some("cadiswave_mic_test" | "cadiswave_calibration")
+        )
+    }) {
+        return Err("Owned microphone test node is still present".into());
+    }
+    Ok(())
 }
 fn command(program: &str, args: &[&str]) -> Result<String> {
     let out = Command::new("timeout")
@@ -955,6 +1002,7 @@ fn run() -> Result {
     };
     match arg(0)? {
         "fixtures" => fixtures(Path::new(arg(1)?)),
+        "assert-no-microphone-child" => assert_no_microphone_child(),
         "fixture-output" => {
             let properties = cadiswave_core::routing::pulse_properties(json!({"node.description":"Fixture Output"}).as_object().expect("object"))?;
             println!("{}", command("pactl",&["load-module","module-null-sink","sink_name=fixture_output","channels=2","channel_map=front-left,front-right",&format!("sink_properties={properties}")])?);
@@ -1005,6 +1053,21 @@ mod tests {
         assert!(node(&objects, "fixture_retired").is_err());
     }
 
+    #[test]
+    fn microphone_child_detection_matches_owned_audio_and_excludes_other_clients() {
+        assert!(is_microphone_child(
+            b"/work/bin/pw-cat\0--properties\0{ media.name = cadiswave_mic_test }\0-\0"
+        ));
+        assert!(is_microphone_child(
+            b"pw-cat\0--properties\0cadiswave_calibration\0"
+        ));
+        assert!(!is_microphone_child(
+            b"pw-cat\0--properties\0unrelated audio\0"
+        ));
+        assert!(!is_microphone_child(
+            b"/smoke-control\0assert-no-microphone-child\0"
+        ));
+    }
     #[test]
     fn malformed_trailing_graph_data_never_returns_a_partial_snapshot() {
         assert!(

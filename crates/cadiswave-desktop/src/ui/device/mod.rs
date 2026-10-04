@@ -8,6 +8,7 @@ mod page;
 mod tests;
 pub use page::DevicePage;
 
+pub mod mic_test;
 pub mod settings;
 
 pub mod compact;

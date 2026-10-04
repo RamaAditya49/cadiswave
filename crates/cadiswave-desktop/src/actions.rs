@@ -19,6 +19,7 @@ pub struct ActionCallbacks {
 pub struct ActionRegistry {
     snapshot: gio::SimpleAction,
     groups: gio::SimpleAction,
+    mic_test: gio::SimpleAction,
     prepare: gio::SimpleAction,
     revision: Cell<Option<u64>>,
 }
@@ -30,6 +31,15 @@ impl ActionRegistry {
         callbacks: ActionCallbacks,
     ) -> Self {
         for (name, signature) in [
+            (
+                "record-microphone-test",
+                <(String, u32)>::static_variant_type(),
+            ),
+            (
+                "play-microphone-test",
+                <(u64, String)>::static_variant_type(),
+            ),
+            ("discard-microphone-test", u64::static_variant_type()),
             ("switch-group", String::static_variant_type()),
             ("set-source-level", <(String, f64)>::static_variant_type()),
             ("toggle-source-mute", String::static_variant_type()),
@@ -51,7 +61,7 @@ impl ActionRegistry {
             action.connect_activate(move |_, parameter| {
                 let result = parameter
                     .ok_or_else(|| OperationError::invalid("Missing action parameter"))
-                    .and_then(|parameter| command(name, parameter));
+                    .and_then(|parameter| command(name, parameter, &runtime.snapshot()));
                 match result {
                     Ok(command) => {
                         if let Err(error) = runtime.submit(command) {
@@ -64,6 +74,7 @@ impl ActionRegistry {
             app.add_action(&action);
         }
         let snapshot = read_action(app, "snapshot", "{}".to_variant(), &handle);
+        let mic_test = read_action(app, "microphone-test", "null".to_variant(), &handle);
         let groups = read_action(
             app,
             "source-groups",
@@ -90,6 +101,7 @@ impl ActionRegistry {
         let registry = Self {
             snapshot,
             groups,
+            mic_test,
             prepare,
             revision: Cell::new(None),
         };
@@ -98,6 +110,11 @@ impl ActionRegistry {
     }
 
     pub fn refresh(&self, snapshot: &AppSnapshot) {
+        // Audio completion does not change the desired routing revision.
+        match snapshot.action_mic_test() {
+            Ok(json) => self.mic_test.set_state(&json.to_variant()),
+            Err(error) => log::warn!("Publishing microphone test state: {error}"),
+        }
         if self.revision.get() == Some(snapshot.revision) {
             return;
         }
@@ -134,6 +151,7 @@ fn read_action(
         }
         let result = match name {
             "snapshot" => snapshot.action_snapshot(),
+            "microphone-test" => snapshot.action_mic_test(),
             "scenes" => snapshot.action_scenes(),
             "levels" => snapshot.action_levels(),
             _ => return,
@@ -153,8 +171,40 @@ fn parameter<T: glib::variant::FromVariant>(value: &Variant) -> Result<T> {
         .ok_or_else(|| OperationError::invalid("Wrong action parameter type"))
 }
 
-fn command(name: &str, value: &Variant) -> Result<AppCommand> {
+fn command(name: &str, value: &Variant, snapshot: &AppSnapshot) -> Result<AppCommand> {
     Ok(match name {
+        "record-microphone-test" => {
+            let (source, seconds): (String, u32) = parameter(value)?;
+            AppCommand::RecordMicTest {
+                source: SourceId::new(source)?,
+                seconds,
+            }
+        }
+        "play-microphone-test" => {
+            let (session, name): (u64, String) = parameter(value)?;
+            let mut outputs = snapshot
+                .outputs
+                .iter()
+                .filter(|output| output.node_name == name);
+            let output = outputs.next().ok_or_else(|| {
+                OperationError::invalid("Select a connected microphone test output")
+            })?;
+            if outputs.next().is_some() || output.identity.object_serial.is_empty() {
+                return Err(OperationError::invalid(
+                    "Microphone test output identity is ambiguous",
+                ));
+            }
+            AppCommand::PlayMicTest {
+                session,
+                output: cadiswave_core::mic_test::PlaybackTarget {
+                    node_name: output.node_name.clone(),
+                    identity: output.identity.clone(),
+                },
+            }
+        }
+        "discard-microphone-test" => AppCommand::CancelMicTest {
+            session: parameter(value)?,
+        },
         "switch-group" => AppCommand::SwitchGroup {
             group: parameter(value)?,
         },
@@ -200,4 +250,52 @@ fn command(name: &str, value: &Variant) -> Result<AppCommand> {
         },
         _ => return Err(OperationError::invalid("Unknown remote action")),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn parse(name: &str, value: &Variant) -> Result<AppCommand> {
+        let snapshot = AppSnapshot {
+            outputs: std::sync::Arc::new(vec![cadiswave_core::model::OutputSnapshot {
+                identity: cadiswave_core::model::NodeIdentity {
+                    server_cookie: 1,
+                    object_serial: "20".into(),
+                },
+                node_id: 20,
+                node_name: "fixture_output".into(),
+                name: "Headphones".into(),
+                priority: 0,
+                is_wave: false,
+                properties: Default::default(),
+            }]),
+            ..AppSnapshot::default()
+        };
+        command(name, value, &snapshot)
+    }
+    #[test]
+    fn microphone_test_actions_parse_only_their_declared_types() {
+        let source = SourceId::new("mic_a").unwrap();
+        assert!(
+            matches!(parse("record-microphone-test", &("mic_a", 1_u32).to_variant()).unwrap(), AppCommand::RecordMicTest { source: actual, seconds: 1 } if actual == source)
+        );
+        assert!(
+            matches!(parse("play-microphone-test", &(12_u64, "fixture_output").to_variant()).unwrap(), AppCommand::PlayMicTest { session: 12, output } if output.node_name == "fixture_output" && output.identity.object_serial == "20")
+        );
+        assert!(matches!(
+            parse("discard-microphone-test", &12_u64.to_variant()).unwrap(),
+            AppCommand::CancelMicTest { session: 12 }
+        ));
+        for (action, parameter) in [
+            ("record-microphone-test", ("mic_a", -1_i32).to_variant()),
+            ("record-microphone-test", ("", 1_u32).to_variant()),
+            (
+                "play-microphone-test",
+                (12_u32, "fixture_output").to_variant(),
+            ),
+            ("discard-microphone-test", 12_u32.to_variant()),
+        ] {
+            assert!(parse(action, &parameter).is_err());
+        }
+    }
 }

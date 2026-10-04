@@ -52,7 +52,10 @@ fn xlr_patches_preserve_every_reserved_byte_and_decode_signed_headphones() {
         assert!(!state.muted);
         assert_eq!(state.phantom, Some(true));
         assert_eq!(state.low_impedance, Some(false));
-        assert_eq!(state.monitor_mix, None);
+        assert_eq!(
+            state.monitor_mix,
+            (profile == ProfileId::WaveXlr).then_some(0xa5a5)
+        );
     }
 }
 
@@ -87,7 +90,6 @@ fn refused_settings_leave_config_unchanged_and_fail_queue_admission() {
     for (profile, setting) in [
         (ProfileId::Wave3, DeviceSetting::Phantom(true)),
         (ProfileId::Wave3, DeviceSetting::LowImpedance(true)),
-        (ProfileId::WaveXlr, DeviceSetting::MonitorMix(100)),
         (ProfileId::WaveXlrMk2, DeviceSetting::MonitorMix(0)),
     ] {
         let bytes = vec![0x6a; profile.profile().legacy.unwrap().config_len];
@@ -133,14 +135,18 @@ fn observed_out_of_range_values_are_not_rewritten_or_clamped() {
 
 #[test]
 fn knob_modes_follow_verified_profile_mapping() {
-    for (profile, length, offset) in [(ProfileId::WaveXlr, 34, 14), (ProfileId::Wave3, 16, 12)] {
+    for (profile, length, offset) in [
+        (ProfileId::WaveXlr, 34, 14),
+        (ProfileId::WaveXlrMk2, 34, 14),
+        (ProfileId::Wave3, 16, 12),
+    ] {
         for (raw, expected) in [
             (0, KnobMode::Gain),
             (1, KnobMode::Gain),
             (2, KnobMode::Headphones),
             (
                 3,
-                if profile == ProfileId::Wave3 {
+                if profile.profile().has_monitor_mix() {
                     KnobMode::MonitorMix
                 } else {
                     KnobMode::None
@@ -277,6 +283,9 @@ fn dock_patches_preserve_reserved_bits_and_every_unrelated_block() {
                     expected_headphones[1] = (flags & !2) | (u8::from(on) << 1)
                 }
                 DeviceSetting::MonitorMix(_) => expected_monitor[0] = 200,
+                DeviceSetting::Clipguard(_) | DeviceSetting::HardwareLowCut(_) => {
+                    panic!("processing has separate fixtures")
+                }
             }
             let mut patched = original.clone();
             patched.apply(setting).unwrap();
@@ -341,7 +350,7 @@ fn original_wave_xlr_gain_limit_is_75_db() {
 }
 #[test]
 fn unmapped_original_wave_xlr_mode_does_not_become_gain() {
-    for mode in [3, 255] {
+    for mode in [4, 255] {
         let mut bytes = [0; 34];
         bytes[14] = mode;
         assert_eq!(

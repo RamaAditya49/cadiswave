@@ -188,7 +188,7 @@ DBUS
 fi
 
 pids=()
-app_pid= watcher_pid= tone_pid= pipewire_pid= pulse_pid= policy_pid= xvfb_pid=
+app_pid= watcher_pid= mic_test_tone_pid= tone_pid= pipewire_pid= pulse_pid= policy_pid= xvfb_pid=
 cleanup() {
     local status=$?
     trap - EXIT INT TERM HUP
@@ -240,6 +240,23 @@ assert_state() {
     done
     echo "State did not converge: $filter" >&2
     cat /work/evidence/snapshot.json >&2
+    return 1
+}
+assert_mic_test() {
+    local filter=$1 file=$2 count
+    for ((count=0;count<150;count++)); do
+        if /smoke-control state microphone-test > "$file"; then
+            if jq -e '.phase == "failed"' "$file" >/dev/null; then
+                echo 'Microphone test failed:' >&2
+                cat "$file" >&2
+                return 1
+            fi
+            if jq -e "$filter" "$file" >/dev/null; then return 0; fi
+        fi
+        sleep .2
+    done
+    echo "Microphone test state did not converge: $filter" >&2
+    cat "$file" >&2
     return 1
 }
 visible_window() { xdotool search --onlyvisible --name '^CadisWave$'; }
@@ -406,6 +423,22 @@ start_tone
 /smoke-control action set-cell-level "('music', 'personal', 0.4)"
 assert_state '.sources[] | select(.id == "music") | .level == 0.5'
 /smoke-control assert-routes
+# Feed only the private raw microphone. No host audio or saved test PCM is used.
+start mic_test_tone_pid mic-test-tone.log bash -o pipefail -c '/smoke-control tone | pacat --playback --raw --format=float32le --rate=48000 --channels=2 --client-name="Private Microphone Tone" --stream-name="Private Microphone Tone" --property="application.name=Private Microphone Tone" --device=fixture_capture_a'
+sleep .5
+for mic_test_cycle in 1 2 3; do
+    mic_test_suffix=; [[ $mic_test_cycle == 1 ]] || mic_test_suffix="-$mic_test_cycle"
+    /smoke-control action record-microphone-test "('mic_a', uint32 1)"
+    assert_mic_test '.phase == "ready" and .source == "mic_a" and .seconds == 1 and .metrics.frames == 48000 and (.metrics.peak_db | type == "number") and .metrics.peak_db > -20 and .metrics.peak_db < -5 and .metrics.clipping == false and .metrics.clipped_samples == 0 and .output == null' "/work/evidence/mic-test-recorded$mic_test_suffix.json"
+    mic_test_session=$(jq -r .session "/work/evidence/mic-test-recorded$mic_test_suffix.json")
+    /smoke-control action play-microphone-test "(uint64 $mic_test_session, 'fixture_output')"
+    assert_mic_test '.phase == "ready" and .output == "fixture_output" and .metrics.frames == 48000 and .metrics.peak_db > -20 and .metrics.peak_db < -5 and .metrics.clipping == false' "/work/evidence/mic-test-played$mic_test_suffix.json"
+    /smoke-control action discard-microphone-test "uint64 $mic_test_session"
+    assert_mic_test '. == null' "/work/evidence/mic-test-discarded$mic_test_suffix.json"
+    wait_command /smoke-control assert-no-microphone-child
+done
+stop mic_test_tone_pid
+printf '%s\n' CADISWAVE_SMOKE_MICROPHONE_TEST_PASSED
 /smoke-control record cadiswave_capture_personal /work/evidence/source-send.f32 0.002
 /smoke-control identity cadiswave_capture_personal > /work/evidence/publication-before.json
 screenshot matrix

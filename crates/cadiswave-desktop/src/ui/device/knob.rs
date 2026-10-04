@@ -39,6 +39,11 @@ pub struct Knob {
     drag: Rc<RefCell<Option<DeviceProjection>>>,
 }
 impl Knob {
+    pub fn add_compact_setters(&self, breakpoint: &adw::Breakpoint) {
+        for property in ["content-width", "content-height"] {
+            breakpoint.add_setter(&self.area, property, Some(&180_i32.to_value()));
+        }
+    }
     pub fn new(controls: DeviceControls) -> Self {
         let widget = gtk::Box::new(gtk::Orientation::Vertical, 4);
         let area = gtk::DrawingArea::builder()

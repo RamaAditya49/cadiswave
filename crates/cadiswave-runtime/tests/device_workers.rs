@@ -310,6 +310,15 @@ mod device {
                 .code,
             ErrorCode::Unsupported
         );
+        for enabled in [false, true] {
+            assert_eq!(
+                manager
+                    .submit(unit, 2, vec![DeviceSetting::HardwareLowCut(enabled)])
+                    .unwrap_err()
+                    .code,
+                ErrorCode::Unsupported
+            );
+        }
         assert!(written.try_recv().is_err());
         manager.stop().unwrap();
         assert!(

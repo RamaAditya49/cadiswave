@@ -99,6 +99,14 @@ pub struct LegacyProfile {
 }
 
 impl DeviceProfile {
+    pub const fn has_clipguard(&self) -> bool {
+        matches!(self.id, ProfileId::Wave3 | ProfileId::XlrDockMk2)
+    }
+
+    pub const fn has_hardware_low_cut(&self) -> bool {
+        matches!(self.id, ProfileId::XlrDockMk2)
+    }
+
     pub const fn has_phantom(&self) -> bool {
         match self.legacy {
             Some(legacy) => legacy.off_phantom.is_some(),
@@ -147,11 +155,14 @@ const XLR: DeviceProfile = DeviceProfile {
     display_name: "Wave XLR",
     vid: 0x0fd9,
     pid: 0x007d,
-    legacy: Some(XLR_LEGACY),
+    legacy: Some(LegacyProfile {
+        off_monitor_mix: Some(12),
+        ..XLR_LEGACY
+    }),
     gain_max: 0x4b00,
     gain_scale: 256,
     hp_scale: 256,
-    mix_max: 0,
+    mix_max: 0x6400,
     capture_serial_prefix: "Elgato_Systems_Elgato_Wave_XLR_",
     sync_alsa_mute: true,
     sync_alsa_hp: true,
@@ -164,6 +175,8 @@ pub static PROFILES: [DeviceProfile; 4] = [
         id: ProfileId::WaveXlrMk2,
         display_name: "Wave XLR MK.2 (0fd9:00a6)",
         pid: 0x00a6,
+        legacy: Some(XLR_LEGACY),
+        mix_max: 0,
         gain_max: 0x5000,
         sync_alsa_gain: false,
         capture_serial_prefix: "Elgato_Systems_Elgato_XLR_Dock_",

@@ -154,6 +154,8 @@ pub enum DeviceSetting {
     Phantom(bool),
     LowImpedance(bool),
     MonitorMix(u16),
+    Clipguard(bool),
+    HardwareLowCut(bool),
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CommandId(pub u64);
@@ -602,10 +604,15 @@ pub fn default_mixes() -> Mixes {
     .collect()
 }
 
+pub const MIN_WINDOW_WIDTH: i32 = 640;
+pub const MIN_WINDOW_HEIGHT: i32 = 480;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Preferences {
     #[serde(default)]
     pub language: crate::locale::LanguageChoice,
+    #[serde(default)]
+    pub voice_presets: crate::voice_presets::VoicePresets,
     pub width: i32,
     pub height: i32,
     pub maximized: bool,
@@ -619,6 +626,7 @@ impl Default for Preferences {
     fn default() -> Self {
         Self {
             language: crate::locale::LanguageChoice::System,
+            voice_presets: crate::voice_presets::VoicePresets::default(),
             width: 1280,
             height: 800,
             maximized: false,
@@ -634,8 +642,8 @@ impl Preferences {
         let mut map = object(value, "preferences")?;
         let mut prefs = Self::default();
         for (key, default, minimum) in [
-            ("width", &mut prefs.width, 800),
-            ("height", &mut prefs.height, 600),
+            ("width", &mut prefs.width, MIN_WINDOW_WIDTH),
+            ("height", &mut prefs.height, MIN_WINDOW_HEIGHT),
         ] {
             if let Some(value) = map.remove(key) {
                 *default =
@@ -648,6 +656,9 @@ impl Preferences {
         }
         if let Some(language) = map.remove("language") {
             prefs.language = serde_json::from_value(language)?;
+        }
+        if let Some(presets) = map.remove("voice_presets") {
+            prefs.voice_presets = serde_json::from_value(presets)?;
         }
         prefs.maximized = take_bool(&mut map, "maximized", false)?;
         prefs.gain_locked = take_bool(&mut map, "gain_locked", false)?;
@@ -806,6 +817,7 @@ pub struct AppSnapshot {
     pub preferences: Arc<Preferences>,
     pub lifecycle: Lifecycle,
     pub calibration: Option<CalibrationSnapshot>,
+    pub mic_test: Option<crate::mic_test::MicTestSnapshot>,
     pub autostart: bool,
     pub hidden_autostart: bool,
     pub service_status: String,
@@ -835,6 +847,7 @@ impl Default for AppSnapshot {
             preferences: Arc::new(Preferences::default()),
             lifecycle: Lifecycle::Starting,
             calibration: None,
+            mic_test: None,
             autostart: false,
             hidden_autostart: false,
             service_status: String::new(),
@@ -903,6 +916,31 @@ impl AppSnapshot {
         Ok(serde_json::to_string(&serde_json::json!({
             "sources": sources, "mixes": mixes, "cells": cells, "outputs": outputs,
             "volumes": volumes, "groups": crate::routing::source_groups(&self.desired.sources),
+        }))?)
+    }
+    /// Publish microphone test metadata without capture identities or audio.
+    pub fn action_mic_test(&self) -> Result<String> {
+        use crate::mic_test::MicTestPhase;
+        let Some(test) = &self.mic_test else {
+            return Ok("null".into());
+        };
+        let phase = match test.phase {
+            MicTestPhase::Recording => "recording",
+            MicTestPhase::Ready => "ready",
+            MicTestPhase::Playing => "playing",
+            MicTestPhase::Failed(_) => "failed",
+        };
+        let metrics = test.metrics.as_ref().map(|metrics| {
+            serde_json::json!({
+                "frames": metrics.frames, "peak_db": metrics.peak_db,
+                "clipped_samples": metrics.clipped_samples, "clipping": metrics.clipping,
+            })
+        });
+        Ok(serde_json::to_string(&serde_json::json!({
+            "session": test.token.session, "source": test.token.source,
+            "seconds": test.seconds, "phase": phase, "metrics": metrics,
+            "error": match &test.phase { MicTestPhase::Failed(error) => Some(error), _ => None },
+            "output": test.output.as_ref().map(|output| &output.node_name),
         }))?)
     }
     pub fn action_scenes(&self) -> Result<String> {

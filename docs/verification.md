@@ -3,13 +3,13 @@
 Verified locally on 2026-10-04 with Rust 1.98.1.
 The public repository is [RamaAditya49/cadiswave](https://github.com/RamaAditya49/cadiswave).
 The original repository identity and history remain intact.
-Local main contains the verified implementation.
+Device settings work uses branch `feat/device-settings` from `0300a4f`.
 Origin points to CadisWave; upstream points to rikkichy/OpenWave.
 The host runs Zorin OS 18.1, GTK 4.14.5, libadwaita 1.5.0, and PipeWire 1.0.5.
 Build dependencies came from an extracted Ubuntu development SDK.
 The installed application uses the host runtime libraries.
 
-## Software checks
+## Base revision checks
 
 | Check | Result |
 | --- | --- |
@@ -51,6 +51,9 @@ The smoke driver now skips that specific retired-object error and preserves othe
 Regression checks and the complete installed smoke passed locally after correction.
 
 ## Physical acceptance
+
+These physical checks predate the new device settings controls.
+They do not establish physical acceptance for the new monitor mapping.
 
 The connected original Wave XLR identifies as `0fd9:007d`.
 Only one desktop runtime owns vendor control.
@@ -94,12 +97,88 @@ Compact controls, both settings languages, controlled confirmation states, and a
 Reference material and screenshots remain outside Git.
 Physical-dial timing and display-frame latency remain unmeasured.
 
+## Device settings checks
+
+The device settings change adds direct software low-cut, built-in voice presets, and named presets.
+Microphone tests record one to ten seconds of raw capture in bounded memory.
+Playback requires an explicit output identity. Recordings are discarded after cancellation.
+Snapshots and public actions expose metadata, not PCM.
+
+The final private installed test passed three complete microphone cycles and the full routing smoke.
+Each cycle recorded 48,000 stereo frames at 48 kHz.
+Its peak was -12.0412 dBFS, with no clipped samples.
+Playback used `fixture_output`, then discard cleared the session.
+The test confirmed that no microphone child or node remained.
+Two further private runs passed 20 recording, playback, and discard cycles each.
+Each recording retained the same frame count, peak, and selected playback output.
+The input signal came from a private synthetic tone.
+No host microphone, host audio route, or USB device was accessed.
+
+All 485 workspace tests passed. The workspace reported 59 ignored cases.
+All 42 private GTK cases passed, including the new settings and geometry tests.
+The other 17 ignored cases remain outside these local passes.
+Formatting, workspace lint, locked release binaries, and locked runtime examples passed.
+English and Indonesian layouts were inspected at 390, 480, and 640 pixels.
+A shorter low-cut hint keeps the Indonesian selected value readable.
+A final independent review found no remaining important issues.
+
+Review corrections cover output replacement, close before recording publication, and shared recording ownership.
+They also cover selected-device removal, Wave:3 API admission, and deferred GTK notifications.
+Each important correction has a regression test.
+
+Ephemeral audio nodes can change between the multiple PipeWire discovery queries.
+This previously expired an unchanged microphone session during recording or playback.
+The controller now retains exact known identities during a transient global discovery failure.
+The worker still checks live cookie, serial, media class, and channels before and after each audio operation.
+Known replacements and worker validation failures still expire the session.
+
+One initial workspace run failed a process cleanup assertion.
+The failure did not recur during 30 test repetitions.
+A deterministic test showed that the test helper treated the kernel's dead `X` state as live.
+The helper now accepts documented terminal states and reads termination once.
+The original failing process transition was not captured.
+Production process cleanup remains unchanged.
+
+One privilege test encountered Busy after its owner released an installation lease.
+A deterministic fork test showed that a child retains the shared lock descriptor until close or exec.
+The fixture now retries only Busy within its existing deadline after the owner releases the lease.
+Other errors still fail immediately. Production installation lease behavior remains unchanged.
+
+A setup fixture also used a five-second event deadline around durable file operations.
+Delaying one successful fsync by six seconds reproduced its timeout.
+The fixture now uses a 30-second total deadline for each setup attempt.
+The delayed case and normal cases pass. Production setup behavior remains unchanged.
+
+One smoke attempt passed PCM measurement, then GNU timeout reported SIGKILL during recorder cleanup.
+The original recorder shutdown delay was not captured.
+The final full smoke passed with unchanged recorder assertions and without concurrent workspace checks.
+
+Final local evidence remains outside Git:
+
+- Workspace log: `/tmp/cadiswave-settings-final-tests.log`.
+- Lint log: `/tmp/cadiswave-settings-final-clippy.log`.
+- GTK log: `/tmp/cadiswave-settings-final-gtk.log`.
+- GTK gallery: `/tmp/cadiswave-settings-gtk.vuPIP4pO/evidence/`.
+- Private installed smoke: `/tmp/cadiswave-settings-smoke.Vq8nn5Wb/evidence/`.
+- Microphone stress run: `/tmp/cadiswave-smoke.4z2aNCYY/evidence/`.
+
+The initial window now fits saved dimensions within 90 percent of the current logical monitor dimensions.
+The application keeps manual resizing and maximized state, with a 640 by 480 minimum.
+The narrow layout places the gain value beside a compact knob and keeps primary controls visible.
+Rendered layouts and viewport assertions passed at 800 by 600 and 640 by 480 logical pixels.
+
 ## Current limits
 
-Clipguard, hardware low-cut, LED changes, device persistence, and sample-rate changes remain disabled.
-Original Wave XLR hardware monitor mix is not mapped.
-Software effects remain available through Mixer.
+LED changes, explicit device persistence, and sample-rate changes remain unavailable.
+Capture rates identify observed formats separately from configured properties.
+Original Wave XLR monitor mix uses pinned Linux source evidence; local physical acceptance remains pending.
+Clipguard supports Dock MK.2 and Wave:3 API 5.3/5.4. Hardware low-cut supports Dock MK.2.
+Original Wave XLR Clipguard and hardware low-cut remain unavailable.
 Other mapped models passed device-free checks but were not physically tested here.
+Read [hardware support](hardware-support.md) for exact profiles and evidence limits.
+
+The active host installation was not replaced during this task.
+Release payloads were staged and tested in a private namespace.
 
 The legacy Python source and configuration remain recoverable outside the active native source tree.
 See [migration](migration.md) for activation, processed capture mapping, and rollback instructions.

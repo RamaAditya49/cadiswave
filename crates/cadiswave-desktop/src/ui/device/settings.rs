@@ -1,4 +1,6 @@
 use super::controls::DeviceControls;
+mod hardware;
+pub mod software;
 use adw::prelude::*;
 use cadiswave_core::{locale::LanguageChoice, model::*};
 use cadiswave_runtime::controller::AppCommand;
@@ -40,18 +42,10 @@ pub struct DeviceSettings {
     revert: gtk::Button,
     feedback: gtk::Label,
     details: gtk::Label,
-    monitor: adw::ActionRow,
+    software: software::SoftwareSettings,
+    hardware: hardware::HardwareSettings,
+    mic_test: Rc<super::mic_test::MicTestControls>,
     model: Rc<SaveModel>,
-}
-fn unavailable(key: &str) -> adw::ActionRow {
-    let row = adw::ActionRow::new();
-    crate::i18n::bind(&row, "title", key);
-    crate::i18n::bind(&row, "subtitle", "hardware-control-unavailable");
-    let icon = gtk::Image::from_icon_name("changes-prevent-symbolic");
-    icon.set_opacity(0.4);
-    row.add_suffix(&icon);
-    row.set_sensitive(false);
-    row
 }
 fn group(page: &adw::PreferencesPage, key: &str) -> adw::PreferencesGroup {
     let group = adw::PreferencesGroup::new();
@@ -68,30 +62,26 @@ impl DeviceSettings {
         crate::i18n::bind(&dialog, "title", "hardware-settings");
         let page = adw::PreferencesPage::new();
         dialog.add(&page);
-        let hardware = group(&page, "hardware-processing");
-        hardware.add(&unavailable("clipguard"));
-        hardware.add(&unavailable("low-cut-hardware"));
-        let software = adw::ActionRow::new();
-        crate::i18n::bind(&software, "title", "low-cut-software");
-        crate::i18n::bind(&software, "subtitle", "software-fx-hint");
-        software.set_subtitle_lines(3);
-        software.set_activatable(true);
-        software.set_action_name(Some("win.mixer"));
-        hardware.add(&software);
-        let led = group(&page, "led-settings");
-        led.add(&unavailable("led-color"));
-        led.add(&unavailable("led-brightness"));
-        let audio = group(&page, "sample-rate");
-        let rate = adw::ActionRow::new();
-        crate::i18n::bind(&rate, "title", "sample-rate");
-        crate::i18n::bind(&rate, "subtitle", "sample-rate-readonly");
-        rate.set_subtitle_lines(3);
-        rate.set_sensitive(false);
-        audio.add(&rate);
-        let monitor = unavailable("monitor-mix");
-        monitor.set_action_name(Some("win.device-panel"));
-        audio.add(&monitor);
-        audio.add(&unavailable("save-to-device"));
+        let software = software::SoftwareSettings::new(controls.clone());
+        page.add(&software.group);
+        let mic_test = Rc::new(super::mic_test::MicTestControls::new(controls.clone()));
+        let test_group = group(&page, "settings-microphone-test");
+        mic_test.container.set_margin_top(12);
+        mic_test.container.set_margin_bottom(12);
+        test_group.add(&mic_test.container);
+        let close_test = mic_test.clone();
+        software.connect_source_changed(move || close_test.close());
+        let close_test = mic_test.clone();
+        dialog.connect_closed(move |_| close_test.close());
+        let hardware = hardware::HardwareSettings::new(controls.clone());
+        for section in [
+            &hardware.processing,
+            &hardware.leds,
+            &hardware.audio,
+            &hardware.information,
+        ] {
+            page.add(section);
+        }
         let app = group(&page, "settings");
         let language = adw::ComboRow::new();
         crate::i18n::bind(&language, "title", "language");
@@ -194,33 +184,30 @@ impl DeviceSettings {
             revert,
             feedback,
             details,
-            monitor,
+            software,
+            hardware,
+            mic_test,
             model,
         };
         result.render(&result.model.controls.snapshot());
         result
     }
     pub fn completed(&self, id: CommandId, outcome: &CommandOutcome) -> bool {
-        let matched = self.model.state.borrow_mut().complete(id, outcome);
-        if matched && matches!(*self.model.state.borrow(), PersistenceState::Saved) {
+        let application = self.model.state.borrow_mut().complete(id, outcome);
+        let matched = self.software.completed(id, outcome)
+            | self.hardware.completed(id, outcome)
+            | application;
+        if application && matches!(*self.model.state.borrow(), PersistenceState::Saved) {
             self.model.dirty.set(false);
         }
         self.render(&self.model.controls.snapshot());
         matched
     }
     pub fn render(&self, snapshot: &AppSnapshot) {
-        let p = super::projection::DeviceProjection::from_snapshot(snapshot);
-        let available = p
-            .unit
-            .is_some_and(|id| cadiswave_core::capabilities::for_profile(id.profile).monitor_mix)
-            && p.writable;
-        self.monitor.set_sensitive(available);
-        self.monitor.set_activatable(available);
-        self.monitor.set_subtitle(&crate::i18n::tr(if available {
-            "monitor-mix-available"
-        } else {
-            "hardware-control-unavailable"
-        }));
+        self.software.render(snapshot);
+        let source = self.software.selected_source();
+        self.hardware.render(snapshot, source.as_ref());
+        self.mic_test.render(snapshot, source);
         let pending = matches!(*self.model.state.borrow(), PersistenceState::Pending(_));
         if !self.model.dirty.get() && !pending {
             self.model.draft.set(snapshot.preferences.language);
@@ -250,6 +237,7 @@ impl DeviceSettings {
     }
     pub fn retranslate(&self) {
         crate::i18n::retranslate();
+        self.software.retranslate();
         self.model.updating.set(true);
         self.language.set_model(Some(&gtk::StringList::new(&[
             &crate::i18n::tr("language-system"),

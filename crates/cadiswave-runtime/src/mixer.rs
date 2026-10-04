@@ -280,11 +280,25 @@ impl GraphSnapshot {
                     .entry(name.clone())
                     .or_default()
                     .push(graph.nodes.len());
+                let mut properties = props.clone();
+                properties.remove("cadiswave.observed-rate");
+                if let Some(formats) = info
+                    .get("params")
+                    .and_then(|params| params.get("Format"))
+                    .and_then(Value::as_array)
+                    && formats.len() == 1
+                    && formats[0].get("mediaType").and_then(Value::as_str) == Some("audio")
+                    && formats[0].get("mediaSubtype").and_then(Value::as_str) == Some("raw")
+                    && let Some(rate) = number(formats[0].get("rate"))
+                        .filter(|rate| (8_000..=384_000).contains(rate))
+                {
+                    properties.insert("cadiswave.observed-rate".into(), rate.into());
+                }
                 graph.nodes.push(GraphNode {
                     id,
                     identity,
                     name,
-                    properties: props.clone(),
+                    properties,
                 });
             } else {
                 let direction = required_text(props.get("port.direction"), "port.direction")?;
@@ -434,6 +448,7 @@ impl GraphSnapshot {
                     "audio.channels",
                     "audio.position",
                     "media.class",
+                    "cadiswave.observed-rate",
                 ] {
                     properties.remove(key);
                 }

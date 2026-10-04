@@ -91,8 +91,8 @@ fn original_wave_xlr_exposes_only_verified_controls() {
             && !capabilities.hardware_low_cut
             && !capabilities.led
             && !capabilities.persistence
-            && !capabilities.monitor_mix
     );
-    assert!(capabilities.phantom && capabilities.low_impedance);
+    assert!(capabilities.phantom && capabilities.low_impedance && capabilities.monitor_mix);
+    assert!(!cadiswave_core::capabilities::for_profile(ProfileId::WaveXlrMk2).monitor_mix);
     assert!(cadiswave_core::capabilities::for_profile(ProfileId::Wave3).monitor_mix);
 }

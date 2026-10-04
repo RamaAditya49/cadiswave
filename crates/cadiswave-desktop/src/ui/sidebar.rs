@@ -563,7 +563,9 @@ impl Sidebar {
                     DeviceSetting::Phantom(value) => phantom = Some(value),
                     DeviceSetting::LowImpedance(value) => low_z = Some(value),
                     DeviceSetting::MonitorMix(value) => monitor = Some(value),
-                    DeviceSetting::Mute(_) => {}
+                    DeviceSetting::Mute(_)
+                    | DeviceSetting::Clipguard(_)
+                    | DeviceSetting::HardwareLowCut(_) => {}
                 }
             }
         }

@@ -50,6 +50,8 @@ pub struct DeviceState {
     pub phantom: Option<bool>,
     pub low_impedance: Option<bool>,
     pub monitor_mix: Option<u16>,
+    pub clipguard: Option<bool>,
+    pub hardware_low_cut: Option<bool>,
     pub knob_mode: KnobMode,
 }
 
@@ -133,12 +135,14 @@ impl ConfigBuffer {
                 phantom: Some(self.bytes[1] & 2 != 0),
                 low_impedance: Some(self.headphones[1] & 2 != 0),
                 monitor_mix: Some(u16::from(self.monitor[0])),
+                clipguard: Some(self.bytes[2] & 0x04 == 0),
+                hardware_low_cut: Some(self.bytes[1] & 0x10 != 0),
                 knob_mode: KnobMode::None,
             };
         };
         let knob_mode = match self.bytes[p.off_vol_select] {
             2 => KnobMode::Headphones,
-            3 if self.profile == ProfileId::Wave3 => KnobMode::MonitorMix,
+            3 if profile.has_monitor_mix() => KnobMode::MonitorMix,
             0 | 1 => KnobMode::Gain,
             _ => KnobMode::None,
         };
@@ -153,6 +157,8 @@ impl ConfigBuffer {
                 .off_monitor_mix
                 .map(|offset| read_u16(&self.bytes, offset)),
             knob_mode,
+            clipguard: profile.has_clipguard().then(|| self.bytes[5] != 0),
+            hardware_low_cut: None,
         }
     }
 
@@ -176,6 +182,12 @@ impl ConfigBuffer {
                     self.headphones[1] = (self.headphones[1] & !2) | (u8::from(value) << 1);
                 }
                 DeviceSetting::MonitorMix(value) => self.monitor[0] = value as u8,
+                DeviceSetting::Clipguard(value) => {
+                    self.bytes[2] = (self.bytes[2] & !0x04) | (u8::from(!value) << 2);
+                }
+                DeviceSetting::HardwareLowCut(value) => {
+                    self.bytes[1] = (self.bytes[1] & !0x10) | (u8::from(value) << 4);
+                }
             }
             return Ok(());
         };
@@ -196,6 +208,8 @@ impl ConfigBuffer {
             DeviceSetting::MonitorMix(value) => {
                 self.put_u16(p.off_monitor_mix.expect("validated capability"), value)
             }
+            DeviceSetting::Clipguard(value) => self.bytes[5] = u8::from(value),
+            DeviceSetting::HardwareLowCut(_) => unreachable!("validated Dock-only capability"),
         }
         Ok(())
     }
@@ -231,6 +245,12 @@ pub fn validate_setting(profile: ProfileId, setting: DeviceSetting) -> Result<De
             return Err(unsupported("monitor mix"));
         }
         DeviceSetting::MonitorMix(value) => DeviceSetting::MonitorMix(value.min(p.mix_max)),
+        DeviceSetting::Clipguard(_) if !p.has_clipguard() => {
+            return Err(unsupported("Clipguard"));
+        }
+        DeviceSetting::HardwareLowCut(_) if !p.has_hardware_low_cut() => {
+            return Err(unsupported("hardware low cut"));
+        }
         value => value,
     })
 }

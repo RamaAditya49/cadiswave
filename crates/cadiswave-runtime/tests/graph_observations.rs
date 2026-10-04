@@ -18,6 +18,42 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[test]
+fn capture_rate_comes_from_current_format_and_cannot_be_spoofed_by_properties() {
+    let objects = json!([
+        {"id":0,"type":"PipeWire:Interface:Core","info":{"cookie":71}},
+        {"id":10,"type":"PipeWire:Interface:Node","info":{
+            "props":{"node.name":"mic","object.serial":100,"media.class":"Audio/Source","audio.channels":1,
+                "audio.rate":48000,"cadiswave.observed-rate":192000},
+            "params":{"Format":[{"mediaType":"audio","mediaSubtype":"raw","rate":96000}]}
+        }}
+    ]);
+    let parse = |objects: &serde_json::Value| {
+        GraphSnapshot::parse(
+            objects,
+            &json!([]),
+            &json!([]),
+            &json!([]),
+            &json!([]),
+            None,
+        )
+        .unwrap()
+    };
+    let graph = parse(&objects);
+    let rate = cadiswave_core::device_settings::capture_rate(&graph.captures[0]).unwrap();
+    assert_eq!(rate.hz, 96000);
+    assert!(rate.negotiated);
+    let mut without_format = objects;
+    without_format[1]["info"]
+        .as_object_mut()
+        .unwrap()
+        .remove("params");
+    let graph = parse(&without_format);
+    let rate = cadiswave_core::device_settings::capture_rate(&graph.captures[0]).unwrap();
+    assert_eq!(rate.hz, 48000);
+    assert!(!rate.negotiated);
+}
+
 fn sid(id: &str) -> SourceId {
     SourceId::new(id).unwrap()
 }

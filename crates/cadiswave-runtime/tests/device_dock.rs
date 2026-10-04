@@ -99,6 +99,7 @@ mod device {
         writes: Vec<u16>,
         short: Option<u16>,
         fail_write: Option<u16>,
+        ignore_write: bool,
     }
     struct DockTransport(Arc<Mutex<DockMemory>>);
     impl Transport for DockTransport {
@@ -116,11 +117,13 @@ mod device {
             if memory.fail_write == Some(selector) {
                 return Err(OperationError::unavailable("simulated write failure"));
             }
-            memory
-                .blocks
-                .get_mut(&selector)
-                .unwrap()
-                .copy_from_slice(bytes);
+            if !memory.ignore_write {
+                memory
+                    .blocks
+                    .get_mut(&selector)
+                    .unwrap()
+                    .copy_from_slice(bytes);
+            }
             Ok(bytes.len())
         }
         fn unresponsive(&self) -> bool {
@@ -142,6 +145,7 @@ mod device {
             writes: Vec::new(),
             short: None,
             fail_write: None,
+            ignore_write: false,
         }));
         let vendor = VendorDevice {
             unit: UnitId {
@@ -212,11 +216,168 @@ mod device {
     }
 
     #[test]
+    fn dock_processing_confirms_both_values_and_preserves_other_blocks() {
+        let (mut backend, memory) = fixture();
+        let original = fixture_lock(&memory).blocks.clone();
+        for (enabled, flags, clip_flags) in [(true, 0xba, 0xa1), (false, 0xaa, 0xa5)] {
+            let state = backend
+                .apply(&[
+                    DeviceSetting::Clipguard(enabled),
+                    DeviceSetting::HardwareLowCut(enabled),
+                ])
+                .unwrap();
+            assert_eq!(state.clipguard, Some(enabled));
+            assert_eq!(state.hardware_low_cut, Some(enabled));
+            let m = fixture_lock(&memory);
+            let mut expected = original[&4].clone();
+            expected[1] = flags;
+            expected[2] = clip_flags;
+            assert_eq!(m.blocks[&4], expected);
+            assert_eq!(m.blocks[&5], original[&5]);
+            assert_eq!(m.blocks[&1], original[&1]);
+        }
+        assert_eq!(fixture_lock(&memory).writes, [4, 4]);
+    }
+
+    #[test]
+    fn original_xlr_monitor_confirms_readback_without_other_config_changes() {
+        let (mut backend, memory) = fixture();
+        backend.vendor.unit.profile = ProfileId::WaveXlr;
+        let mut original = vec![0x55; 34];
+        original[14] = 3;
+        fixture_lock(&memory).blocks = [(0, original.clone())].into();
+        for value in [0, 0x3200, 0x6400] {
+            let state = backend.apply(&[DeviceSetting::MonitorMix(value)]).unwrap();
+            assert_eq!(state.monitor_mix, Some(value));
+            assert_eq!(state.knob_mode, protocol::KnobMode::MonitorMix);
+            let mut expected = original.clone();
+            expected[12..14].copy_from_slice(&value.to_le_bytes());
+            assert_eq!(fixture_lock(&memory).blocks[&0], expected);
+        }
+        assert_eq!(fixture_lock(&memory).writes, [0, 0, 0]);
+        fixture_lock(&memory).ignore_write = true;
+        assert_eq!(
+            backend
+                .apply(&[DeviceSetting::MonitorMix(0)])
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+        assert_eq!(fixture_lock(&memory).writes, [0, 0, 0, 0]);
+        fixture_lock(&memory).short = Some(0);
+        assert!(backend.apply(&[DeviceSetting::MonitorMix(0)]).is_err());
+        assert_eq!(fixture_lock(&memory).writes, [0, 0, 0, 0]);
+        backend.vendor.unit.profile = ProfileId::WaveXlrMk2;
+        let reads = fixture_lock(&memory).reads.len();
+        assert_eq!(
+            backend
+                .apply(&[DeviceSetting::MonitorMix(0)])
+                .unwrap_err()
+                .code,
+            ErrorCode::Unsupported
+        );
+        assert_eq!(fixture_lock(&memory).reads.len(), reads);
+    }
+
+    #[test]
+    fn wave3_clipguard_checks_live_api_before_any_config_write() {
+        for api in [[1, 0], [5, 2], [5, 5], [6, 3], [5, 3], [5, 4]] {
+            let (mut backend, memory) = fixture();
+            backend.vendor.unit.profile = ProfileId::Wave3;
+            backend.vendor.usb_info = None;
+            let mut info = vec![0; 64];
+            info[..2].copy_from_slice(&api);
+            fixture_lock(&memory).blocks = [(0, vec![0; 16]), (0x000a, info)].into();
+            let settings = [DeviceSetting::Mute(true), DeviceSetting::Clipguard(true)];
+            if matches!(api, [5, 3] | [5, 4]) {
+                assert_eq!(backend.apply(&settings).unwrap().clipguard, Some(true));
+                assert_eq!(fixture_lock(&memory).writes, [0]);
+            } else {
+                assert_eq!(
+                    backend.apply(&settings).unwrap_err().code,
+                    ErrorCode::Unsupported
+                );
+                let state = fixture_lock(&memory);
+                assert!(state.writes.is_empty());
+                assert_eq!(state.reads, [0x000a]);
+                assert_eq!(state.blocks[&0], [0; 16]);
+            }
+        }
+        let (mut backend, memory) = fixture();
+        backend.vendor.unit.profile = ProfileId::Wave3;
+        backend.vendor.usb_info = None;
+        fixture_lock(&memory).blocks = [(0, vec![0; 16]), (0x000a, vec![0; 64])].into();
+        fixture_lock(&memory).short = Some(0x000a);
+        assert!(backend.apply(&[DeviceSetting::Clipguard(false)]).is_err());
+        assert!(fixture_lock(&memory).writes.is_empty());
+    }
+
+    #[test]
+    fn wave3_clipguard_confirms_readback_and_rejects_unmapped_low_cut() {
+        let (mut backend, memory) = fixture();
+        backend.vendor.unit.profile = ProfileId::Wave3;
+        backend.vendor.usb_info.as_mut().unwrap().api = "5.3".into();
+        let original = vec![0x55; 16];
+        fixture_lock(&memory).blocks = [(0, original.clone())].into();
+        for (enabled, byte) in [(true, 1), (false, 0)] {
+            let state = backend.apply(&[DeviceSetting::Clipguard(enabled)]).unwrap();
+            assert_eq!(state.clipguard, Some(enabled));
+            assert_eq!(state.hardware_low_cut, None);
+            let mut expected = original.clone();
+            expected[5] = byte;
+            assert_eq!(fixture_lock(&memory).blocks[&0], expected);
+        }
+        assert_eq!(fixture_lock(&memory).writes, [0, 0]);
+        let reads = fixture_lock(&memory).reads.len();
+        assert_eq!(
+            backend
+                .apply(&[DeviceSetting::HardwareLowCut(true)])
+                .unwrap_err()
+                .code,
+            ErrorCode::Unsupported
+        );
+        assert_eq!(fixture_lock(&memory).reads.len(), reads);
+        fixture_lock(&memory).ignore_write = true;
+        assert_eq!(
+            backend
+                .apply(&[DeviceSetting::Clipguard(true)])
+                .unwrap_err()
+                .code,
+            ErrorCode::Unavailable
+        );
+        assert_eq!(fixture_lock(&memory).writes, [0, 0, 0]);
+        fixture_lock(&memory).short = Some(0);
+        assert!(backend.apply(&[DeviceSetting::Clipguard(true)]).is_err());
+        assert_eq!(fixture_lock(&memory).writes, [0, 0, 0]);
+    }
+
+    #[test]
+    fn processing_readback_mismatch_fails_without_write_replay() {
+        for setting in [
+            DeviceSetting::Clipguard(true),
+            DeviceSetting::HardwareLowCut(false),
+        ] {
+            let (mut backend, memory) = fixture();
+            fixture_lock(&memory).ignore_write = true;
+            let error = backend.apply(&[setting]).unwrap_err();
+            assert_eq!(error.code, ErrorCode::Unavailable);
+            assert_eq!(fixture_lock(&memory).writes, [4]);
+        }
+    }
+
+    #[test]
     fn incomplete_or_invalid_config_cannot_write_and_failed_write_is_not_replayed() {
         for selector in [4, 5, 1] {
             let (mut backend, memory) = fixture();
             fixture_lock(&memory).short = Some(selector);
-            assert!(backend.apply(&[DeviceSetting::Mute(true)]).is_err());
+            assert!(
+                backend
+                    .apply(&[
+                        DeviceSetting::Clipguard(true),
+                        DeviceSetting::HardwareLowCut(false)
+                    ])
+                    .is_err()
+            );
             assert!(fixture_lock(&memory).writes.is_empty());
         }
         let (mut backend, memory) = fixture();

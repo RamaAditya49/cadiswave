@@ -5,6 +5,7 @@ use crate::{
     device::{DeviceEvent, DeviceManager},
     health::HealthMonitor,
     meter::MeterMonitor,
+    mic_test::{MicTestEvent, MicTestWorker},
     mixer::{Mixer, MixerEvent},
     paths::{Lease, RuntimePaths},
     service, setup, uninstall,
@@ -192,6 +193,8 @@ struct ActiveWorkers {
     meter_events: crate::meter::MeterEvents,
     calibration: CalibrationWorker,
     calibration_events: mpsc::Receiver<CalibrationEvent>,
+    mic_test: MicTestWorker,
+    mic_test_events: mpsc::Receiver<MicTestEvent>,
     health: HealthMonitor,
     drain_issues: Option<Vec<OperationIssue>>,
 }
@@ -223,9 +226,20 @@ impl ActiveWorkers {
                 return Err(error);
             }
         };
+        let (mut mic_test, mic_test_events) = match MicTestWorker::start() {
+            Ok(value) => value,
+            Err(error) => {
+                let _ = calibration.stop();
+                let _ = devices.stop();
+                let _ = meters.stop();
+                let _ = mixer.stop();
+                return Err(error);
+            }
+        };
         let health = match HealthMonitor::start(false, Arc::new(move || readiness.gaps())) {
             Ok(value) => value,
             Err(error) => {
+                let _ = mic_test.stop();
                 let _ = calibration.stop();
                 let _ = devices.stop();
                 let _ = meters.stop();
@@ -242,6 +256,8 @@ impl ActiveWorkers {
             meter_events,
             calibration,
             calibration_events,
+            mic_test,
+            mic_test_events,
             health,
             drain_issues: None,
         })
@@ -284,6 +300,9 @@ impl ActiveWorkers {
         if let Ok(event) = self.calibration_events.try_recv() {
             return Some(BackendEvent::Calibration(event));
         }
+        if let Ok(event) = self.mic_test_events.try_recv() {
+            return Some(BackendEvent::MicTest(event));
+        }
         while let Ok(event) = self.meter_events.try_recv() {
             if self.meters.accepts(&event) {
                 return Some(BackendEvent::Meter(event));
@@ -300,6 +319,7 @@ impl ActiveWorkers {
             let mut issues = Vec::new();
             for (target, result) in [
                 ("calibration", self.calibration.stop()),
+                ("microphone test", self.mic_test.stop()),
                 ("devices", self.devices.stop()),
             ] {
                 if let Err(error) = result {
@@ -497,6 +517,19 @@ impl Backend for NativeBackend {
                 .mixer
                 .set_capture_mute(node_name, binding, muted)?,
             BackendCommand::MeterTargets(targets) => self.active()?.meters.set_targets(targets)?,
+            BackendCommand::RecordMicTest {
+                job,
+                token,
+                seconds,
+            } => self.active()?.mic_test.record(job, token, seconds)?,
+            BackendCommand::PlayMicTest { job, token, output } => {
+                self.active()?.mic_test.play(job, token, output)?
+            }
+            BackendCommand::CancelMicTest(session) => {
+                if let Some(active) = self.active.as_mut() {
+                    active.mic_test.cancel(session)?;
+                }
+            }
             BackendCommand::RecordCalibration { token, seconds } => {
                 self.active()?.calibration.record(token, seconds)?
             }
@@ -614,7 +647,7 @@ mod tests {
             fs,
             os::unix::{fs::PermissionsExt, process::ExitStatusExt},
             process::{Command, ExitStatus, Output},
-            time::Duration,
+            time::{Duration, Instant},
         };
 
         let Some(root) = std::env::var_os("CADISWAVE_SETUP_STATUS_FIXTURE") else {
@@ -765,8 +798,11 @@ mod tests {
                     mixes: default_mixes(),
                 })
                 .unwrap();
+            // This test checks event order, not filesystem sync speed.
+            let deadline = Instant::now() + Duration::from_secs(30);
             loop {
-                match worker.events.recv_timeout(Duration::from_secs(5)).unwrap() {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                match worker.events.recv_timeout(remaining).unwrap() {
                     BackendEvent::Autostart { .. } => {}
                     BackendEvent::ServiceObserved { .. } => {}
                     BackendEvent::Status {
@@ -1138,6 +1174,7 @@ mod tests {
                     .unwrap();
                 capturing.recv_timeout(Duration::from_secs(5)).unwrap();
             }
+            let (mic_test, mic_test_events) = MicTestWorker::start().unwrap();
             let health = HealthMonitor::start_with(
                 false,
                 Arc::new(std::collections::HashMap::new),
@@ -1166,6 +1203,8 @@ mod tests {
                     meter_events,
                     calibration,
                     calibration_events,
+                    mic_test,
+                    mic_test_events,
                     health,
                     drain_issues: None,
                 }),

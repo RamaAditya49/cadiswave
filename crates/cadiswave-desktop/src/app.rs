@@ -20,6 +20,27 @@ use std::{
     time::Duration,
 };
 
+mod geometry;
+
+fn monitor_dimensions(window: Option<&adw::ApplicationWindow>) -> Option<(i32, i32)> {
+    let display = window
+        .map(gtk::prelude::WidgetExt::display)
+        .or_else(gtk::gdk::Display::default)?;
+    let monitor = window
+        .and_then(|window| window.surface())
+        .and_then(|surface| display.monitor_at_surface(&surface))
+        .or_else(|| {
+            display
+                .monitors()
+                .item(0)?
+                .downcast::<gtk::gdk::Monitor>()
+                .ok()
+        })?;
+    // GDK monitor geometry uses logical pixels. Do not apply the display scale again.
+    let geometry = monitor.geometry();
+    Some((geometry.width(), geometry.height()))
+}
+
 pub fn run(args: Vec<String>) -> i32 {
     if let Err(error) = cadiswave_runtime::process::require_user() {
         eprintln!("cadiswave: {error}");
@@ -200,6 +221,10 @@ impl AppUi {
         }
         let icons = Rc::new(Icons::new(paths.clone()));
         let snapshot = handle.snapshot();
+        let (width, height) = geometry::fit_size(
+            (snapshot.preferences.width, snapshot.preferences.height),
+            monitor_dimensions(None),
+        );
         let i18n = Rc::new(RefCell::new(
             crate::i18n::I18n::new(snapshot.preferences.language, &crate::i18n::system_locale())
                 .expect("validated embedded Fluent catalogs"),
@@ -215,10 +240,10 @@ impl AppUi {
             let window = adw::ApplicationWindow::builder()
                 .application(&application)
                 .title("CadisWave")
-                .default_width(snapshot.preferences.width.max(800))
-                .default_height(snapshot.preferences.height.max(600))
+                .default_width(width)
+                .default_height(height)
                 .build();
-            window.set_size_request(800, 600);
+            window.set_size_request(geometry::MIN_SIZE.0, geometry::MIN_SIZE.1);
             window.add_css_class("cadiswave");
             if snapshot.preferences.maximized {
                 window.maximize();
@@ -305,7 +330,8 @@ impl AppUi {
                 crate::ui::device::controls::DeviceControls::new(handle.clone()),
                 i18n.clone(),
             );
-            device_page.install_breakpoints(&window, &split);
+            let narrow = device_page.install_breakpoints(&window, &split);
+            narrow.add_setter(&title, "visible", Some(&false.to_value()));
             pages.add_titled(
                 &device_page.widget,
                 Some("device"),
@@ -313,6 +339,7 @@ impl AppUi {
             );
             pages.add_titled(&split, Some("mixer"), &crate::i18n::tr("mixer"));
             let switcher = gtk::StackSwitcher::new();
+            switcher.add_css_class("cadiswave-header-switcher");
             switcher.set_stack(Some(&pages));
             header.pack_start(&switcher);
             content.append(&pages);
@@ -717,8 +744,8 @@ impl AppUi {
         }
         let maximized = self.window.is_maximized();
         let changes = PreferencesEdit {
-            width: (!maximized).then(|| self.window.width().max(800)),
-            height: (!maximized).then(|| self.window.height().max(600)),
+            width: (!maximized).then(|| self.window.width().max(geometry::MIN_SIZE.0)),
+            height: (!maximized).then(|| self.window.height().max(geometry::MIN_SIZE.1)),
             maximized: Some(maximized),
             ..Default::default()
         };
@@ -975,10 +1002,11 @@ impl AppUi {
         }
         *self.latest.borrow_mut() = snapshot.clone();
         if snapshot.revision > 0 && !self.geometry_restored.replace(true) {
-            self.window.set_default_size(
-                snapshot.preferences.width.max(800),
-                snapshot.preferences.height.max(600),
+            let (width, height) = geometry::fit_size(
+                (snapshot.preferences.width, snapshot.preferences.height),
+                monitor_dimensions(Some(&self.window)),
             );
+            self.window.set_default_size(width, height);
             if snapshot.preferences.maximized {
                 self.window.maximize();
             } else {
@@ -1389,6 +1417,96 @@ mod tests {
     use crate::ui::test_support::{Rig, descendants};
     use std::time::Instant;
 
+    fn assert_main_controls_in_view(ui: &AppUi) {
+        let viewport = &ui.device_page.widget;
+        let width = viewport.width() as f32;
+        let height = viewport.height() as f32;
+        for (name, control) in [
+            ("mute", ui.device_page.mute.upcast_ref::<gtk::Widget>()),
+            (
+                "dial slider",
+                ui.device_page.knob.scale.upcast_ref::<gtk::Widget>(),
+            ),
+        ] {
+            assert!(control.is_mapped(), "{name} is not mapped");
+            let bounds = control.compute_bounds(viewport).unwrap();
+            assert!(bounds.width() > 0.0 && bounds.height() > 0.0);
+            assert!(
+                bounds.x() >= -1.0
+                    && bounds.y() >= -1.0
+                    && bounds.x() + bounds.width() <= width + 1.0
+                    && bounds.y() + bounds.height() <= height + 1.0,
+                "{name} bounds {bounds:?} exceed viewport {width} x {height}"
+            );
+        }
+    }
+
+    #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn main_window_geometry_and_controls_fit_small_monitor_viewports() {
+        adw::init().unwrap();
+        let data = crate::ui::test_support::asset_paths().data;
+        let css = if data.join("style.css").exists() {
+            data.join("style.css")
+        } else {
+            data.join("data/style.css")
+        };
+        let provider = gtk::CssProvider::new();
+        provider.load_from_path(css);
+        gtk::style_context_add_provider_for_display(
+            &gtk::gdk::Display::default().unwrap(),
+            &provider,
+            gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        let rig = Rig::new(
+            serde_json::json!({}),
+            vec![crate::ui::test_support::unit("Geometry", 2, -12.0)],
+        );
+        let application = adw::Application::builder()
+            .application_id("io.github.RamaAditya49.CadisWave.GeometryTest")
+            .build();
+        application.register(None::<&gio::Cancellable>).unwrap();
+        let ui = AppUi::new(application, rig.paths(), rig.handle());
+        let preferences = rig.snapshot().preferences.clone();
+        assert_eq!(
+            (ui.window.default_width(), ui.window.default_height()),
+            geometry::fit_size(
+                (preferences.width, preferences.height),
+                monitor_dimensions(None)
+            )
+        );
+        assert_eq!(
+            (ui.window.width_request(), ui.window.height_request()),
+            geometry::MIN_SIZE
+        );
+        assert!(ui.window.is_resizable());
+        let mut snapshot = (*rig.snapshot()).clone();
+        let preferences = Arc::make_mut(&mut snapshot.preferences);
+        preferences.width = i32::MAX;
+        preferences.height = i32::MAX;
+        ui.refresh(Arc::new(snapshot));
+        assert_eq!(
+            (ui.window.default_width(), ui.window.default_height()),
+            geometry::fit_size((i32::MAX, i32::MAX), monitor_dimensions(Some(&ui.window)))
+        );
+        for (width, height) in [(800, 600), (640, 480)] {
+            ui.window.set_default_size(width, height);
+            ui.window.present();
+            let deadline = Instant::now() + Duration::from_millis(300);
+            while Instant::now() < deadline {
+                while glib::MainContext::default().pending() {
+                    glib::MainContext::default().iteration(false);
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            assert!(ui.window.width() <= width && ui.window.height() <= height);
+            assert!(!ui.title.is_visible());
+            assert_main_controls_in_view(&ui);
+        }
+        assert_eq!(rig.device_command_count(), 0);
+        ui.window.set_visible(false);
+    }
+
     fn calibration_fixture() -> (Rig, Rc<AppUi>, CalibrationToken) {
         adw::init().unwrap();
         let rig = Rig::new(serde_json::json!({}), vec![]);
@@ -1621,6 +1739,13 @@ mod tests {
             for scroll in descendants::<gtk::ScrolledWindow>(&ui.device_settings.dialog) {
                 if scroll.is_mapped() {
                     let adjustment = scroll.vadjustment();
+                    adjustment.set_value((adjustment.upper() - adjustment.page_size()) / 2.0);
+                }
+            }
+            shot(&format!("settings-microphone-{name}"));
+            for scroll in descendants::<gtk::ScrolledWindow>(&ui.device_settings.dialog) {
+                if scroll.is_mapped() {
+                    let adjustment = scroll.vadjustment();
                     adjustment.set_value(adjustment.upper() - adjustment.page_size());
                 }
             }
@@ -1639,6 +1764,10 @@ mod tests {
         shot("device-1024");
         ui.window.set_default_size(800, 600);
         shot("device-800");
+        assert_main_controls_in_view(&ui);
+        ui.window.set_default_size(640, 480);
+        shot("device-640");
+        assert_main_controls_in_view(&ui);
         let dialog = adw::AlertDialog::builder()
             .heading(crate::i18n::tr("rate-confirm-title"))
             .body(crate::i18n::tr("rate-confirm-body"))

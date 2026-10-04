@@ -8,6 +8,7 @@ pub mod events;
 pub mod health;
 pub mod installation;
 pub mod meter;
+pub mod mic_test;
 pub mod migration;
 pub mod mixer;
 pub mod paths;

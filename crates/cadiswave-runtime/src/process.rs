@@ -405,10 +405,29 @@ impl OwnedChild {
     ) -> Result<Self> {
         Self::spawn_with_helper(&paths.maintenance, program, args, stdout)
     }
+    /// Pass worker-owned anonymous input to the supervised child.
+    pub fn spawn_with_stdin(
+        program: &str,
+        args: &[String],
+        stdin: Stdio,
+        stdout: Stdio,
+    ) -> Result<Self> {
+        let helper = crate::paths::maintenance_executable()?;
+        Self::spawn_with_io(&helper, program, args, stdin, stdout)
+    }
     fn spawn_with_helper(
         helper: &std::path::Path,
         program: &str,
         args: &[String],
+        stdout: Stdio,
+    ) -> Result<Self> {
+        Self::spawn_with_io(helper, program, args, Stdio::null(), stdout)
+    }
+    fn spawn_with_io(
+        helper: &std::path::Path,
+        program: &str,
+        args: &[String],
+        stdin: Stdio,
         stdout: Stdio,
     ) -> Result<Self> {
         let child = Command::new(helper)
@@ -418,7 +437,7 @@ impl OwnedChild {
             .arg("--")
             .arg(program)
             .args(args)
-            .stdin(Stdio::null())
+            .stdin(stdin)
             .stdout(stdout)
             .stderr(Stdio::piped())
             .spawn()?;

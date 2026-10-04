@@ -11,6 +11,7 @@ use std::{
 pub enum ScaleKind {
     Dial,
     Headphones,
+    Monitor,
 }
 pub struct ScaleInteraction {
     captured: Rc<RefCell<Option<DeviceProjection>>>,
@@ -29,6 +30,14 @@ fn submit(
         }
         ScaleKind::Headphones => {
             let _ = controls.set(p, DeviceSetting::HeadphoneDb(value), timing);
+        }
+        ScaleKind::Monitor => {
+            if let Some(unit) = p.unit
+                && let Ok(setting) =
+                    cadiswave_core::device_settings::monitor_setting(unit.profile, value)
+            {
+                let _ = controls.set(p, setting, timing);
+            }
         }
     }
 }

@@ -10,6 +10,7 @@ use std::{
 };
 
 mod calibration;
+mod mic_test;
 mod mutations;
 mod mutes;
 mod scene;
@@ -22,6 +23,8 @@ enum SettingField {
     Phantom,
     LowImpedance,
     Monitor,
+    Clipguard,
+    HardwareLowCut,
 }
 fn setting_field(setting: DeviceSetting) -> SettingField {
     match setting {
@@ -31,6 +34,8 @@ fn setting_field(setting: DeviceSetting) -> SettingField {
         DeviceSetting::Phantom(_) => SettingField::Phantom,
         DeviceSetting::LowImpedance(_) => SettingField::LowImpedance,
         DeviceSetting::MonitorMix(_) => SettingField::Monitor,
+        DeviceSetting::Clipguard(_) => SettingField::Clipguard,
+        DeviceSetting::HardwareLowCut(_) => SettingField::HardwareLowCut,
     }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -94,6 +99,7 @@ struct Controller {
     errors: Vec<OperationIssue>,
     errors_dirty: bool,
     calibration: Option<calibration::CalibrationSession>,
+    mic_test: Option<mic_test::MicTestSession>,
     next_session: u64,
     frozen: bool,
     stopped: bool,
@@ -226,6 +232,7 @@ impl Controller {
             errors,
             errors_dirty: true,
             calibration: None,
+            mic_test: None,
             next_session: 1,
             frozen: false,
             stopped: false,
@@ -404,6 +411,7 @@ impl Controller {
         self.refresh_desired();
         self.refresh_bindings();
         self.refresh_calibration_validity();
+        self.refresh_mic_test_validity();
         self.sync_unit_view();
         self.update_handovers(&before.sources);
         self.route();
@@ -586,6 +594,19 @@ impl Controller {
             .into_iter()
             .map(|setting| validate_setting(unit.profile, setting))
             .collect::<Result<_>>()?;
+        if settings
+            .iter()
+            .any(|setting| matches!(setting, DeviceSetting::Clipguard(_)))
+            && !cadiswave_core::capabilities::clipguard_available(
+                unit.profile,
+                &self.units[&unit].info.api,
+            )
+        {
+            return Err(OperationError::new(
+                ErrorCode::Unsupported,
+                "Clipguard is unavailable for this device API",
+            ));
+        }
         if settings.is_empty() {
             return Ok(());
         }
@@ -903,6 +924,7 @@ impl Controller {
                 );
                 self.intents.retain(|(target, _), _| *target != unit);
                 if self.view.selected_unit == Some(unit) {
+                    self.cancel_mic_test();
                     self.view.selected_unit = self
                         .units
                         .keys()
@@ -1005,6 +1027,7 @@ impl Controller {
                         self.auto_add_captures();
                     }
                     self.refresh_calibration_validity();
+                    self.refresh_mic_test_validity();
                 }
                 self.sync_unit_view();
             }
@@ -1055,6 +1078,7 @@ impl Controller {
                 }
             }
             BackendEvent::Calibration(event) => self.calibration_complete(event),
+            BackendEvent::MicTest(event) => self.mic_test_complete(event),
             BackendEvent::Autostart { job, actual, error } => {
                 match actual {
                     Ok((enabled, hidden)) => {

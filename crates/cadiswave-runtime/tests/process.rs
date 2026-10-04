@@ -22,19 +22,49 @@ fn live(pid: u32) -> bool {
     let Ok(stat) = fs::read_to_string(format!("/proc/{pid}/stat")) else {
         return false;
     };
-    !stat
+    live_stat(&stat)
+}
+fn live_stat(stat: &str) -> bool {
+    // Z is zombie. X and legacy x are dead. Other states require observation.
+    // https://man7.org/linux/man-pages/man5/proc_pid_stat.5.html
+    let state = stat
         .rsplit_once(')')
-        .expect("proc stat")
-        .1
-        .trim_start()
-        .starts_with('Z')
+        .and_then(|(_, fields)| fields.split_whitespace().next());
+    !matches!(state, Some("Z" | "X" | "x"))
+}
+
+#[test]
+fn process_stat_distinguishes_live_and_terminated_states() {
+    for state in ["R", "S", "D", "T", "t", "I", "P"] {
+        assert!(live_stat(&format!(
+            "42 (fixture with ) character) {state} 1 42"
+        )));
+    }
+    for state in ["Z", "X", "x"] {
+        assert!(!live_stat(&format!("42 (fixture) {state} 1 42")));
+    }
+    for malformed in [
+        "",
+        "not a process stat",
+        "42 (fixture)",
+        "42 (fixture) ? 1 42",
+        "42 (fixture) Zombie",
+    ] {
+        assert!(live_stat(malformed));
+    }
 }
 fn wait_dead(pid: u32) {
     let start = Instant::now();
-    while live(pid) && start.elapsed() < Duration::from_secs(2) {
+    loop {
+        if !live(pid) {
+            return;
+        }
+        assert!(
+            start.elapsed() < Duration::from_secs(2),
+            "owned PID {pid} survived cleanup"
+        );
         thread::sleep(Duration::from_millis(10));
     }
-    assert!(!live(pid), "owned PID {pid} survived cleanup");
 }
 
 #[test]

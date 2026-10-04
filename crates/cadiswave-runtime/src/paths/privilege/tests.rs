@@ -1,6 +1,20 @@
 use super::*;
 use std::os::unix::fs::{PermissionsExt, symlink};
 
+fn after_owner_release(mut acquire: impl FnMut() -> Result<Lease>) -> Result<Lease> {
+    // Parallel forks can retain the shared descriptor until exec closes it.
+    // https://man7.org/linux/man-pages/man2/flock.2.html
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+    loop {
+        match acquire() {
+            Err(error) if error.code == ErrorCode::Busy && std::time::Instant::now() < deadline => {
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
+            result => return result,
+        }
+    }
+}
+
 fn private(path: &Path) {
     fs::create_dir_all(path).unwrap();
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).unwrap();
@@ -52,7 +66,10 @@ fn handoff(home: &Path, values: &Environment, expected: &Path, direct: bool) {
     );
     let user_path = expected.join(installation_lock_name(&identity, true).unwrap());
     let before = fs::metadata(&user_path).unwrap();
-    let root_view = open_existing_exclusive(&identity, original.uid, &original.directory).unwrap();
+    let root_view = after_owner_release(|| {
+        open_existing_exclusive(&identity, original.uid, &original.directory)
+    })
+    .unwrap();
     assert_eq!(root_view.path, user_path);
     let after = fs::metadata(&root_view.path).unwrap();
     assert_eq!(
@@ -67,14 +84,61 @@ fn handoff(home: &Path, values: &Environment, expected: &Path, direct: bool) {
     drop(root_view);
     fs::remove_dir(&identity).unwrap();
     // A completed/partially removed installation still uses the same lock.
-    let retry = open_existing_exclusive(
-        &identity,
-        original.uid,
-        &derive(home, values, direct).unwrap().directory,
-    )
-    .unwrap();
+    let directory = derive(home, values, direct).unwrap().directory;
+    let retry =
+        after_owner_release(|| open_existing_exclusive(&identity, original.uid, &directory))
+            .unwrap();
     assert_eq!(retry.path, user_path);
     assert_eq!(fs::metadata(&retry.path).unwrap().ino(), before.ino());
+}
+
+#[test]
+fn released_fixture_owner_waits_for_its_shared_descriptor_without_ignoring_errors() {
+    let home = tempfile::tempdir().unwrap();
+    let uid = rustix::process::geteuid().as_raw();
+    let identity = home.path().join("identity");
+    let directory = home.path().join("runtime");
+    private(&identity);
+    private(&directory);
+    let path = directory.join(installation_lock_name(&identity, true).unwrap());
+    fs::write(&path, b"").unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+    let owner = open_existing_exclusive(&identity, uid, &directory).unwrap();
+    let inode = fs::metadata(&path).unwrap().ino();
+    let shared = owner._file.try_clone().unwrap();
+    drop(owner);
+    let (release, held) = std::sync::mpsc::channel();
+    let holder = std::thread::spawn(move || {
+        held.recv().unwrap();
+        drop(shared);
+    });
+    let mut release = Some(release);
+    let result = after_owner_release(|| {
+        let result = open_existing_exclusive(&identity, uid, &directory);
+        if result
+            .as_ref()
+            .is_err_and(|error| error.code == ErrorCode::Busy)
+            && let Some(release) = release.take()
+        {
+            release.send(()).unwrap();
+        }
+        result
+    });
+    holder.join().unwrap();
+    assert!(
+        release.is_none(),
+        "the shared descriptor must hold the lock"
+    );
+    let retry = result.unwrap();
+    assert_eq!(fs::metadata(&retry.path).unwrap().ino(), inode);
+    let mut attempts = 0;
+    let error = after_owner_release(|| {
+        attempts += 1;
+        Err(identity_error("unsafe fixture lock"))
+    })
+    .unwrap_err();
+    assert_eq!(error.code, ErrorCode::Identity);
+    assert_eq!(attempts, 1);
 }
 
 #[test]

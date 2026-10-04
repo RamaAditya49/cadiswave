@@ -313,6 +313,20 @@ impl Controller {
                 );
                 self.set_source_fx(&source, settings)?;
             }
+            AppCommand::SaveVoicePreset { name, settings } => {
+                let mut preferences = self.store.preferences.value().clone();
+                preferences.voice_presets.save(&name, settings)?;
+                self.store.preferences.replace(preferences)?;
+                self.view.preferences = Arc::new(self.store.preferences.value().clone());
+                self.dirty = true;
+            }
+            AppCommand::DeleteVoicePreset { name } => {
+                let mut preferences = self.store.preferences.value().clone();
+                preferences.voice_presets.delete(&name)?;
+                self.store.preferences.replace(preferences)?;
+                self.view.preferences = Arc::new(self.store.preferences.value().clone());
+                self.dirty = true;
+            }
             AppCommand::JoinGroup { source, target } => {
                 if source == target {
                     return Err(OperationError::invalid("Cannot group a source with itself"));
@@ -364,6 +378,9 @@ impl Controller {
                         "Selected unit has disconnected",
                     ));
                 }
+                if unit != self.view.selected_unit {
+                    self.cancel_mic_test();
+                }
                 self.cancel_pending(|key| matches!(key, PendingKey::Device(..)));
                 self.view.selected_unit = unit;
                 self.dirty = true;
@@ -407,10 +424,10 @@ impl Controller {
                     preferences.language = language;
                 }
                 if let Some(width) = changes.width {
-                    preferences.width = width.max(800);
+                    preferences.width = width.max(MIN_WINDOW_WIDTH);
                 }
                 if let Some(height) = changes.height {
-                    preferences.height = height.max(600);
+                    preferences.height = height.max(MIN_WINDOW_HEIGHT);
                 }
                 if let Some(maximized) = changes.maximized {
                     preferences.maximized = maximized;
@@ -438,6 +455,14 @@ impl Controller {
             AppCommand::SaveScene { name } => self.save_scene(&name)?,
             AppCommand::ApplyScene { scene } => self.apply_scene(id, &scene)?,
             AppCommand::DeleteScene { scene } => self.delete_scene(&scene)?,
+            AppCommand::RecordMicTest { source, seconds } => {
+                self.record_mic_test(id, &source, seconds)?
+            }
+            AppCommand::PlayMicTest { session, output } => {
+                self.play_mic_test(id, session, &output)?
+            }
+            AppCommand::CancelMicTest { session } => self.cancel_mic_test_token(session)?,
+            AppCommand::CloseMicTest { record } => self.close_mic_test(record),
             AppCommand::StartCalibration { source } => self.start_calibration(&source)?,
             AppCommand::RecordNoise { token } => self.record_calibration(id, &token, false)?,
             AppCommand::RecordSpeech { token } => self.record_calibration(id, &token, true)?,
@@ -885,6 +910,7 @@ impl Controller {
         self.handovers.clear();
         self.cancel_pending(|_| true);
         self.cancel_calibration();
+        self.cancel_mic_test();
         if self.store.preferences.writable()
             && let Err(error) = self
                 .store

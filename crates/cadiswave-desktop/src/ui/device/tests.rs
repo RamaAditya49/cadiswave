@@ -91,6 +91,56 @@ fn unavailable_settings_do_not_submit_hardware_commands() {
     assert_eq!(rig.device_command_count(), 0);
     assert_eq!(rig.routing_command_count(), routes_before);
 }
+
+#[test]
+#[ignore = "Requires the isolated GTK runner"]
+fn verified_clipguard_is_available_in_device_settings() {
+    use adw::prelude::*;
+    adw::init().unwrap();
+    let mut wave = crate::ui::test_support::unit("A", 2, -10.0);
+    wave.id.profile = cadiswave_core::profiles::ProfileId::Wave3;
+    wave.info.api = "5.3".into();
+    wave.state = cadiswave_core::model::Observation::Known(
+        cadiswave_core::protocol::ConfigBuffer::decode(wave.id.profile, &[0; 16])
+            .unwrap()
+            .state(),
+    );
+    let rig = crate::ui::test_support::Rig::new(serde_json::json!({}), vec![wave]);
+    let locale = std::rc::Rc::new(std::cell::RefCell::new(
+        crate::i18n::I18n::new(cadiswave_core::locale::LanguageChoice::English, "en").unwrap(),
+    ));
+    crate::i18n::activate(locale.clone());
+    let settings =
+        settings::DeviceSettings::new(controls::DeviceControls::new(rig.handle()), locale);
+    let window = adw::Window::builder()
+        .default_width(640)
+        .default_height(900)
+        .build();
+    window.present();
+    settings.dialog.present(Some(&window));
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(400);
+    while std::time::Instant::now() < deadline {
+        while glib::MainContext::default().pending() {
+            glib::MainContext::default().iteration(false);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let clipguard = crate::ui::test_support::descendants::<adw::ActionRow>(&settings.dialog)
+        .into_iter()
+        .find(|row| row.title() == "Clipguard")
+        .expect("Clipguard setting");
+    assert!(
+        clipguard.is_sensitive(),
+        "The exact Wave:3 profile maps Clipguard"
+    );
+    assert_eq!(
+        rig.device_command_count(),
+        0,
+        "Rendering cannot write hardware"
+    );
+    settings.dialog.close();
+    window.close();
+}
 #[test]
 fn repeated_connections_do_not_repeat_notifications() {
     let rig = crate::ui::test_support::Rig::new(

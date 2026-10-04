@@ -43,10 +43,13 @@ See the [feature limits](#device-support) before switching.
 | --- | --- |
 | Device dashboard | Read input levels, adjust gain, toggle mute, and control headphones. |
 | Compact controls | Keep key controls nearby. Use the tray when your desktop provides a tray host. |
+| Adaptive window | Restore a size that fits the current monitor. Use compact controls in a narrow layout. |
 | PipeWire mixer | Manage application sources, independent mixes, outputs, scenes, and software effects. |
 | English and Indonesian | Change the interface language without restarting audio or USB workers. |
 | Confirmed device state | Read confirmed hardware values. Keep pending edits separate from actual device state. |
 | Capture monitoring | Check capture byte activity and connection status. Enable disruptive recovery explicitly. |
+| Microphone settings | Select a microphone, change low-cut, apply voice presets, and save named presets. |
+| Microphone test | Record one to ten seconds in memory. Check peak levels and clipping. Play through a selected output. |
 
 ## A closer look
 
@@ -68,17 +71,18 @@ See [screenshot provenance](docs/images/README.md) for capture details.
 
 | Device | USB ID | Mapped controls | CadisWave physical checks |
 | --- | --- | --- | --- |
-| Wave XLR | `0fd9:007d` | Gain up to 75 dB, mute, phantom power, headphones, low impedance | Tested; see [results](docs/verification.md) |
+| Wave XLR | `0fd9:007d` | Gain up to 75 dB, mute, phantom power, headphones, low impedance, monitor mix | Tested earlier controls; new monitor mapping has no local physical check; see [results](docs/verification.md) |
 | XLR Dock | `0fd9:00a6` | Gain, mute, phantom power, headphones, low impedance | Not tested here |
-| Wave:3 | `0fd9:0070` | Gain, mute, headphones, monitor mix | Not tested here |
-| XLR Dock MK.2 | `0fd9:00c7` | Gain, mute, phantom power, headphones, monitor mix, low impedance | Not tested here |
+| Wave:3 | `0fd9:0070` | Gain, mute, headphones, monitor mix, Clipguard (API 5.3/5.4) | Not tested here |
+| XLR Dock MK.2 | `0fd9:00c7` | Gain, mute, phantom power, headphones, monitor mix, low impedance, Clipguard, hardware low-cut | Not tested here |
 
 Mapped controls have protocol tests. This does not establish physical acceptance for every model or firmware.
 Read [hardware support](docs/hardware-support.md) before using another device.
 
-Clipguard, hardware low-cut, LED changes, hardware persistence, and sample-rate changes remain unavailable.
-Original Wave XLR hardware monitor mix is not mapped.
-Use Mixer for software low-cut, gate, compression, EQ, delay, and mono effects.
+Device settings show controls for each exact device profile. Unsupported controls include an explanation.
+LED changes, explicit device persistence, and sample-rate changes remain unavailable.
+Sample-rate readings distinguish an observed stream format from a configured property.
+Use device settings for software low-cut and voice presets. Use Mixer for gate, compression, EQ, delay, and mono effects.
 Unknown hardware dial modes disable dial edits.
 
 ## Build and run
@@ -159,8 +163,8 @@ See [verification](docs/verification.md) for build dependencies and test limits.
 ### Is CadisWave a complete Wave Link replacement?
 
 CadisWave provides device controls, routing, scenes, and host-side effects.
-Clipguard control, hardware low-cut, LED changes, device persistence, and sample-rate changes remain unavailable.
-Original Wave XLR hardware monitor mix is not mapped.
+Clipguard and hardware low-cut depend on the exact device profile.
+LED changes, explicit device persistence, and sample-rate changes remain unavailable.
 See [device support](#device-support) for each model's scope.
 
 ### Where can I download or install CadisWave?

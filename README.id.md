@@ -43,10 +43,13 @@ Baca [batas dukungan](#dukungan-perangkat) sebelum beralih.
 | --- | --- |
 | Dashboard perangkat | Baca level input, atur gain, aktifkan mute, dan kontrol headphone. |
 | Kontrol ringkas | Akses kontrol utama dalam jendela kecil. Gunakan tray jika desktop menyediakan tray host. |
+| Ukuran jendela adaptif | Gunakan ukuran terakhir yang muat di layar saat ini. Kontrol utama menyesuaikan jendela sempit. |
 | Mixer PipeWire | Kelola sumber aplikasi, mix terpisah, output, scene, dan efek software. |
 | Inggris dan Indonesia | Ganti bahasa tanpa memulai ulang audio atau worker USB. |
 | Status perangkat terkonfirmasi | Lihat nilai hasil pembacaan hardware, terpisah dari perubahan yang masih diproses. |
 | Pemantauan capture | Periksa aktivitas byte capture dan koneksi. Pemulihan yang mengganggu audio harus diaktifkan secara eksplisit. |
+| Pengaturan mikrofon | Pilih mikrofon, atur low-cut, terapkan preset suara, dan simpan preset bernama. |
+| Tes mikrofon | Rekam 1–10 detik di memori. Periksa level puncak dan clipping, lalu putar melalui output pilihan. |
 
 ## Lihat lebih dekat
 
@@ -68,17 +71,20 @@ Lihat [asal screenshot](docs/images/README.md) untuk detail capture.
 
 | Perangkat | USB ID | Kontrol yang dipetakan | Pengujian fisik CadisWave |
 | --- | --- | --- | --- |
-| Wave XLR | `0fd9:007d` | Gain maksimal 75 dB, mute, phantom power, headphone, low impedance | Sudah diuji; lihat [hasil](docs/verification.md) |
+| Wave XLR | `0fd9:007d` | Gain maksimal 75 dB, mute, phantom power, headphone, low impedance, monitor mix | Kontrol lama sudah diuji; monitor baru belum diuji pada perangkat fisik; lihat [hasil](docs/verification.md) |
 | XLR Dock | `0fd9:00a6` | Gain, mute, phantom power, headphone, low impedance | Belum diuji di sini |
-| Wave:3 | `0fd9:0070` | Gain, mute, headphone, monitor mix | Belum diuji di sini |
-| XLR Dock MK.2 | `0fd9:00c7` | Gain, mute, phantom power, headphone, monitor mix, low impedance | Belum diuji di sini |
+| Wave:3 | `0fd9:0070` | Gain, mute, headphone, monitor mix, Clipguard (API 5.3/5.4) | Belum diuji di sini |
+| XLR Dock MK.2 | `0fd9:00c7` | Gain, mute, phantom power, headphone, monitor mix, low impedance, Clipguard, hardware low-cut | Belum diuji di sini |
 
 Kontrol yang dipetakan memiliki tes protokol. Hasilnya bukan bukti pengujian fisik untuk semua model atau firmware.
 Baca [dukungan hardware](docs/hardware-support.md) sebelum memakai perangkat lain.
 
-Clipguard, hardware low-cut, perubahan LED, penyimpanan ke perangkat, dan perubahan sample rate belum tersedia.
-Mix monitor hardware Wave XLR asli belum dipetakan.
-Gunakan Mixer untuk software low-cut, gate, compressor, EQ, delay, dan mono.
+Pengaturan perangkat menampilkan kontrol sesuai model perangkat. Kontrol yang belum didukung memiliki penjelasan.
+Perubahan LED, penyimpanan eksplisit ke perangkat, dan perubahan sample rate belum tersedia.
+Pembacaan sample rate membedakan format stream yang teramati dari properti konfigurasi.
+Gunakan pengaturan perangkat untuk low-cut software dan preset suara. Gunakan Mixer untuk gate, compressor, EQ, delay, dan mono.
+Tes mikrofon merekam 1–10 detik di memori, menghitung level puncak dan clipping, lalu memutar hasil melalui output pilihan.
+Preset bawaan mencakup Meeting, Podcast, dan Streaming. Preset bernama dapat disimpan dan dihapus.
 Mode dial yang tidak dikenal tidak dapat digunakan untuk mengubah nilai.
 
 ## Build dan jalankan
@@ -159,8 +165,8 @@ Lihat [verifikasi](docs/verification.md) untuk dependensi build dan batas penguj
 ### Apakah CadisWave menggantikan semua fitur Wave Link?
 
 CadisWave menyediakan kontrol perangkat, routing, scene, dan efek yang diproses di komputer.
-Kontrol Clipguard, hardware low-cut, perubahan LED, penyimpanan ke perangkat, dan perubahan sample rate belum tersedia.
-Mix monitor hardware Wave XLR asli belum dipetakan.
+Clipguard dan low-cut hardware tersedia sesuai model perangkat.
+Perubahan LED, penyimpanan eksplisit ke perangkat, dan perubahan sample rate belum tersedia.
 Lihat [dukungan perangkat](#dukungan-perangkat) untuk batas tiap model.
 
 ### Di mana bisa mengunduh atau memasang CadisWave?

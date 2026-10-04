@@ -252,6 +252,8 @@ impl Fixture {
                     DeviceSetting::HeadphoneDb(value) => state.hp_volume_db = *value,
                     DeviceSetting::LowImpedance(value) => state.low_impedance = Some(*value),
                     DeviceSetting::MonitorMix(value) => state.monitor_mix = Some(*value),
+                    DeviceSetting::Clipguard(value) => state.clipguard = Some(*value),
+                    DeviceSetting::HardwareLowCut(value) => state.hardware_low_cut = Some(*value),
                     DeviceSetting::Phantom(_) => panic!("scene submitted phantom"),
                 }
             }

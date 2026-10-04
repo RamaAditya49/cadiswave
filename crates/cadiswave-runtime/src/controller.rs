@@ -98,6 +98,13 @@ pub enum AppCommand {
         source: SourceId,
         effect: String,
     },
+    SaveVoicePreset {
+        name: String,
+        settings: FxSettings,
+    },
+    DeleteVoicePreset {
+        name: String,
+    },
     JoinGroup {
         source: SourceId,
         target: SourceId,
@@ -152,6 +159,20 @@ pub enum AppCommand {
     },
     CancelCalibration {
         token: CalibrationToken,
+    },
+    RecordMicTest {
+        source: SourceId,
+        seconds: u32,
+    },
+    PlayMicTest {
+        session: u64,
+        output: cadiswave_core::mic_test::PlaybackTarget,
+    },
+    CancelMicTest {
+        session: u64,
+    },
+    CloseMicTest {
+        record: CommandId,
     },
     Shutdown,
     PrepareUninstall {
@@ -351,6 +372,17 @@ pub enum BackendCommand {
         seconds: u32,
     },
     CancelCalibration(CalibrationToken),
+    RecordMicTest {
+        job: u64,
+        token: cadiswave_core::mic_test::MicTestToken,
+        seconds: u32,
+    },
+    PlayMicTest {
+        job: u64,
+        token: cadiswave_core::mic_test::MicTestToken,
+        output: cadiswave_core::mic_test::PlaybackTarget,
+    },
+    CancelMicTest(u64),
     Autostart {
         job: u64,
         enabled: bool,
@@ -386,6 +418,7 @@ pub enum BackendEvent {
     },
     Meter(MeterEvent),
     Calibration(CalibrationEvent),
+    MicTest(crate::mic_test::MicTestEvent),
     Autostart {
         job: Option<u64>,
         actual: Result<(bool, bool)>,

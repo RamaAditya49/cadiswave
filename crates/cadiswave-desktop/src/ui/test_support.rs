@@ -11,7 +11,7 @@ use cadiswave_runtime::{
 };
 use serde_json::{Value, json};
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::{HashMap, VecDeque},
     os::unix::fs::DirBuilderExt,
     path::{Path, PathBuf},
@@ -63,6 +63,7 @@ struct FixtureState {
     device_command_count: usize,
     fail_device_once: bool,
     routing_command_count: usize,
+    mic_command_count: usize,
 }
 
 // Preserve poisoned state for diagnostics and shutdown rather than unwrap it.
@@ -100,20 +101,29 @@ impl Backend for FixtureBackend {
                 desired, bindings, ..
             } => {
                 fixture_state(&self.state).routing_command_count += 1;
-                let fixture_sources = desired.sources.is_empty()
-                    || (desired.sources.len() == 1
-                        && desired.sources.values().all(|source| {
-                            source.kind == SourceKind::App
-                                && source.name == "Player"
-                                && source.match_app_names == ["Player"]
-                        }));
-                if !fixture_sources || !bindings.is_empty() || desired.mixes != default_mixes() {
+                let fixture_sources = desired.sources.values().all(|source| {
+                    (source.kind == SourceKind::App
+                        && source.name == "Player"
+                        && source.match_app_names == ["Player"])
+                        || (source.kind == SourceKind::Device
+                            && source.node_name.starts_with("fixture_"))
+                });
+                if !fixture_sources
+                    || bindings.keys().any(|name| !name.starts_with("fixture_"))
+                    || desired.mixes != default_mixes()
+                {
                     return Err(self.forbidden("non-fixture routing"));
                 }
                 // Fixture sources have no streams or audio nodes to route.
                 Ok(())
             }
-            BackendCommand::MeterTargets(targets) if targets.is_empty() => Ok(()),
+            BackendCommand::MeterTargets(targets)
+                if targets
+                    .iter()
+                    .all(|target| target.node_name.starts_with("fixture_")) =>
+            {
+                Ok(())
+            }
             BackendCommand::Device {
                 job,
                 unit,
@@ -126,6 +136,9 @@ impl Backend for FixtureBackend {
                             DeviceSetting::Mute(_)
                                 | DeviceSetting::GainRaw(_)
                                 | DeviceSetting::LowImpedance(_)
+                                | DeviceSetting::MonitorMix(_)
+                                | DeviceSetting::Clipguard(_)
+                                | DeviceSetting::HardwareLowCut(_)
                         ) && !matches!(setting, DeviceSetting::HeadphoneDb(db)
                         if db.is_finite() && (-60.0..=0.0).contains(db))
                     })
@@ -161,6 +174,11 @@ impl Backend for FixtureBackend {
                             device.gain_raw = raw.min(unit.profile.profile().gain_max)
                         }
                         DeviceSetting::LowImpedance(value) => device.low_impedance = Some(value),
+                        DeviceSetting::MonitorMix(value) => device.monitor_mix = Some(value),
+                        DeviceSetting::Clipguard(value) => device.clipguard = Some(value),
+                        DeviceSetting::HardwareLowCut(value) => {
+                            device.hardware_low_cut = Some(value)
+                        }
                         _ => unreachable!("validated fixture setting"),
                     }
                 }
@@ -177,6 +195,53 @@ impl Backend for FixtureBackend {
             }
             BackendCommand::MeterTargets(_) => Err(self.forbidden("live meter targets")),
             BackendCommand::CaptureMute { .. } => Err(self.forbidden("capture mute")),
+            BackendCommand::RecordMicTest {
+                job,
+                token,
+                seconds,
+            } => {
+                if !token.node_name.starts_with("fixture_") || !(1..=10).contains(&seconds) {
+                    return Err(self.forbidden("live microphone test"));
+                }
+                fixture_state(&self.state).mic_command_count += 1;
+                self.pending.push_back(BackendEvent::MicTest(
+                    cadiswave_runtime::mic_test::MicTestEvent {
+                        job,
+                        token,
+                        output: None,
+                        result: Ok(cadiswave_runtime::mic_test::MicTestResult::Recorded(
+                            cadiswave_core::mic_test::MicTestMetrics {
+                                frames: 48_000 * u64::from(seconds),
+                                peak_db: -12.0,
+                                clipped_samples: 0,
+                                clipping: false,
+                            },
+                        )),
+                    },
+                ));
+                Ok(())
+            }
+            BackendCommand::PlayMicTest { job, token, output } => {
+                if !token.node_name.starts_with("fixture_")
+                    || !output.node_name.starts_with("fixture_")
+                {
+                    return Err(self.forbidden("live microphone playback"));
+                }
+                fixture_state(&self.state).mic_command_count += 1;
+                self.pending.push_back(BackendEvent::MicTest(
+                    cadiswave_runtime::mic_test::MicTestEvent {
+                        job,
+                        token,
+                        output: Some(output),
+                        result: Ok(cadiswave_runtime::mic_test::MicTestResult::Played),
+                    },
+                ));
+                Ok(())
+            }
+            BackendCommand::CancelMicTest(_) => {
+                fixture_state(&self.state).mic_command_count += 1;
+                Ok(())
+            }
             BackendCommand::RecordCalibration { .. } => Err(self.forbidden("calibration")),
             BackendCommand::CancelCalibration(_) => Err(self.forbidden("calibration cancellation")),
             BackendCommand::Autostart { .. } => Err(self.forbidden("autostart")),
@@ -223,11 +288,19 @@ pub(crate) struct Rig {
     pump: Option<thread::JoinHandle<()>>,
     pump_closed: mpsc::Receiver<()>,
     ui_events: mpsc::Receiver<RuntimeEvent>,
+    barrier_counter: Cell<u64>,
 }
 impl Rig {
     pub(crate) fn new(matrix: Value, units: Vec<UnitSnapshot>) -> Self {
+        Self::new_with_sources(matrix, units, json!({}))
+    }
+    pub(crate) fn new_with_sources(
+        matrix: Value,
+        units: Vec<UnitSnapshot>,
+        sources: Value,
+    ) -> Self {
         let root = PrivateRoot::new();
-        for (name, value) in [("sources.json", json!({})), ("mixes.json", matrix)] {
+        for (name, value) in [("sources.json", sources), ("mixes.json", matrix)] {
             std::fs::write(root.0.join(name), serde_json::to_vec(&value).unwrap()).unwrap();
         }
         let state = Arc::new(Mutex::new(FixtureState {
@@ -271,6 +344,7 @@ impl Rig {
             pump: Some(pump),
             pump_closed,
             ui_events,
+            barrier_counter: Cell::new(0),
         };
         rig.wait(|snapshot| snapshot.revision > 0);
         for unit in units {
@@ -300,6 +374,59 @@ impl Rig {
             "unexpected fixture operations: {failures:?}"
         );
     }
+    pub(crate) fn set_captures(&self, captures: Vec<CaptureSnapshot>) {
+        assert!(
+            captures
+                .iter()
+                .all(|capture| capture.node_name.starts_with("fixture_"))
+        );
+        self.incoming
+            .send(BackendEvent::Graph(MixerObservation {
+                observation: Observation::Known(()),
+                captures,
+                streams: vec![],
+                outputs: vec![],
+                default_sink: None,
+                meter_targets: vec![],
+                mix_identities: Default::default(),
+                silent_sources: Default::default(),
+                errors: vec![],
+                revision: self.handle.snapshot().revision,
+            }))
+            .unwrap();
+        self.barrier("widget fixture capture update");
+    }
+    pub(crate) fn set_test_audio(
+        &self,
+        captures: Vec<CaptureSnapshot>,
+        outputs: Vec<OutputSnapshot>,
+    ) {
+        assert!(
+            captures
+                .iter()
+                .all(|capture| capture.node_name.starts_with("fixture_"))
+        );
+        assert!(
+            outputs
+                .iter()
+                .all(|output| output.node_name.starts_with("fixture_"))
+        );
+        self.incoming
+            .send(BackendEvent::Graph(MixerObservation {
+                observation: Observation::Known(()),
+                captures,
+                streams: vec![],
+                outputs,
+                default_sink: None,
+                meter_targets: vec![],
+                mix_identities: Default::default(),
+                silent_sources: Default::default(),
+                errors: vec![],
+                revision: self.handle.snapshot().revision,
+            }))
+            .unwrap();
+        self.barrier("widget fixture microphone update");
+    }
     fn wait(&self, predicate: impl Fn(&AppSnapshot) -> bool) {
         let deadline = Instant::now() + DEADLINE;
         while !predicate(&self.handle.snapshot()) {
@@ -313,9 +440,12 @@ impl Rig {
         self.check_backend();
     }
     fn barrier(&self, label: &str) {
+        let counter = self.barrier_counter.get();
+        self.barrier_counter.set(counter + 1);
+        let label = format!("{label} {counter}");
         self.incoming
             .send(BackendEvent::Status {
-                service: label.into(),
+                service: label.clone(),
                 setup_required: false,
             })
             .unwrap();
@@ -402,6 +532,9 @@ impl Rig {
     }
     pub(crate) fn routing_command_count(&self) -> usize {
         fixture_state(&self.state).routing_command_count
+    }
+    pub(crate) fn mic_command_count(&self) -> usize {
+        fixture_state(&self.state).mic_command_count
     }
     pub(crate) fn fail_next_device_command(&self) {
         fixture_state(&self.state).fail_device_once = true;

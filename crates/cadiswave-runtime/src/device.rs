@@ -696,9 +696,25 @@ impl UnitBackend for SyncedDevice {
         Ok((state, errors))
     }
     fn apply(&mut self, settings: &[DeviceSetting]) -> Result<DeviceState> {
-        // All validation precedes any transfer; one reserved-byte-preserving RMW.
+        // Profile validation precedes transfers. API admission precedes config writes.
         for setting in settings {
             protocol::validate_setting(self.vendor.unit.profile, *setting)?;
+        }
+        if self.vendor.unit.profile == ProfileId::Wave3
+            && settings
+                .iter()
+                .any(|setting| matches!(setting, DeviceSetting::Clipguard(_)))
+        {
+            let info = self.vendor.read_info()?;
+            if !cadiswave_core::capabilities::clipguard_available(
+                self.vendor.unit.profile,
+                &info.api,
+            ) {
+                return Err(OperationError::new(
+                    ErrorCode::Unsupported,
+                    "Clipguard is unavailable for this device API",
+                ));
+            }
         }
         let mut config = self.vendor.read_config()?;
         let before = (self.vendor.unit.profile == ProfileId::XlrDockMk2).then(|| config.clone());
@@ -720,6 +736,10 @@ impl UnitBackend for SyncedDevice {
                 DeviceSetting::HeadphoneDb(_) => state.hp_volume_db == expected.hp_volume_db,
                 DeviceSetting::MonitorMix(_) => state.monitor_mix == expected.monitor_mix,
                 DeviceSetting::LowImpedance(_) => state.low_impedance == expected.low_impedance,
+                DeviceSetting::Clipguard(_) => state.clipguard == expected.clipguard,
+                DeviceSetting::HardwareLowCut(_) => {
+                    state.hardware_low_cut == expected.hardware_low_cut
+                }
             };
             if !confirmed {
                 return Err(OperationError::unavailable(

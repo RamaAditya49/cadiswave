@@ -22,6 +22,8 @@ pub fn panel() -> gtk::Box {
 }
 pub struct DevicePage {
     pub widget: gtk::ScrolledWindow,
+    body: gtk::Box,
+    device: gtk::Box,
     columns: gtk::Box,
     face: gtk::Box,
     left: gtk::Box,
@@ -220,6 +222,8 @@ impl DevicePage {
         });
         Self {
             widget,
+            body,
+            device,
             columns,
             face,
             left,
@@ -251,7 +255,7 @@ impl DevicePage {
         &self,
         window: &adw::ApplicationWindow,
         split: &adw::OverlaySplitView,
-    ) {
+    ) -> adw::Breakpoint {
         let medium = adw::Breakpoint::new(
             adw::BreakpointCondition::parse("max-width: 1220sp").expect("constant breakpoint"),
         );
@@ -267,19 +271,36 @@ impl DevicePage {
         small.add_setter(
             &self.face,
             "orientation",
-            Some(&gtk::Orientation::Vertical.to_value()),
+            Some(&gtk::Orientation::Horizontal.to_value()),
         );
+        for property in ["margin-start", "margin-end", "margin-top"] {
+            small.add_setter(&self.body, property, Some(&16_i32.to_value()));
+        }
+        small.add_setter(&self.center, "spacing", Some(&12_i32.to_value()));
+        self.knob.add_compact_setters(&small);
         small.add_setter(
             &self.columns,
             "orientation",
             Some(&gtk::Orientation::Vertical.to_value()),
         );
         small.add_setter(split, "collapsed", Some(&true.to_value()));
-        let (columns, center) = (self.columns.clone(), self.center.clone());
-        small.connect_apply(move |_| columns.reorder_child_after(&center, None::<&gtk::Widget>));
-        let (columns, left) = (self.columns.clone(), self.left.clone());
-        small.connect_unapply(move |_| columns.reorder_child_after(&left, None::<&gtk::Widget>));
-        window.add_breakpoint(small);
+        let (columns, center, device) = (
+            self.columns.clone(),
+            self.center.clone(),
+            self.device.clone(),
+        );
+        small.connect_apply(move |_| {
+            columns.reorder_child_after(&center, None::<&gtk::Widget>);
+            device.add_css_class("cadiswave-device-compact");
+        });
+        let (columns, left, device) =
+            (self.columns.clone(), self.left.clone(), self.device.clone());
+        small.connect_unapply(move |_| {
+            columns.reorder_child_after(&left, None::<&gtk::Widget>);
+            device.remove_css_class("cadiswave-device-compact");
+        });
+        window.add_breakpoint(small.clone());
+        small
     }
     pub fn set_events(&self, events: &[String]) {
         if let Some(last) = events.last()

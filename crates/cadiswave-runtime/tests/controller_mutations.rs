@@ -25,6 +25,55 @@ struct FixtureBackend {
     activation: Option<mpsc::Receiver<Result<()>>>,
     shutdown: Option<mpsc::Receiver<std::result::Result<(), ShutdownError>>>,
 }
+
+#[test]
+fn corrupt_voice_presets_remain_unchanged_after_save_or_delete() {
+    let original = r#"{"voice_presets":{"Bad":{"lowcut":100}},"custom":"keep"}"#;
+    let mut rig = Rig::new(json!({}), json!({}), Some(("ui-state.json", original)));
+    for command in [
+        AppCommand::SaveVoicePreset {
+            name: "New voice".into(),
+            settings: Default::default(),
+        },
+        AppCommand::DeleteVoicePreset { name: "Bad".into() },
+    ] {
+        let id = rig.submit(command);
+        assert!(matches!(rig.result(id), CommandOutcome::Rejected(_)));
+        assert_eq!(
+            std::fs::read_to_string(rig.root.path().join("ui-state.json")).unwrap(),
+            original
+        );
+    }
+}
+
+#[test]
+fn named_voice_presets_persist_and_invalid_edits_preserve_the_store() {
+    let mut rig = Rig::new(json!({}), json!({}), None);
+    let settings = cadiswave_core::voice_presets::BuiltinPreset::Podcast.settings();
+    rig.apply(AppCommand::SaveVoicePreset {
+        name: "My voice".into(),
+        settings: settings.clone(),
+    });
+    rig.wait(|snapshot| snapshot.preferences.voice_presets.get("My voice").is_some());
+    let path = rig.root.path().join("ui-state.json");
+    let before = std::fs::read(&path).unwrap();
+    let stored = Preferences::from_value(serde_json::from_slice(&before).unwrap()).unwrap();
+    assert_eq!(stored.voice_presets.get("My voice"), Some(&settings));
+    let id = rig.submit(AppCommand::SaveVoicePreset {
+        name: "\n".into(),
+        settings: settings.clone(),
+    });
+    assert!(matches!(rig.result(id), CommandOutcome::Rejected(_)));
+    assert_eq!(std::fs::read(&path).unwrap(), before);
+    rig.apply(AppCommand::DeleteVoicePreset {
+        name: "My voice".into(),
+    });
+    rig.wait(|snapshot| snapshot.preferences.voice_presets.is_empty());
+    let stored =
+        Preferences::from_value(serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap())
+            .unwrap();
+    assert!(stored.voice_presets.is_empty());
+}
 impl Backend for FixtureBackend {
     fn identity(&self) -> &Path {
         &self.identity
@@ -220,6 +269,59 @@ fn sid(value: &str) -> SourceId {
 }
 fn mid(value: &str) -> MixId {
     MixId::new(value).unwrap()
+}
+
+#[test]
+fn wave3_clipguard_api_admission_rejects_unknown_versions_without_dispatch() {
+    let mut rig = Rig::new(json!({}), json!({}), None);
+    let mut device = unit(1, "FIXTURE", false);
+    device.id.profile = ProfileId::Wave3;
+    device.state = Observation::Known(
+        ConfigBuffer::decode(ProfileId::Wave3, &[0; 16])
+            .unwrap()
+            .state(),
+    );
+    for api in ["", "Unavailable", "1.0", "5.2", "5.5", "5.3", "5.4"] {
+        device.info.api = api.into();
+        rig.incoming
+            .send(BackendEvent::Unit(device.clone()))
+            .unwrap();
+        rig.barrier(&format!("wave3-api-{api}"));
+        rig.drain();
+        for enabled in [false, true] {
+            let command = rig.submit(AppCommand::SetDeviceSetting {
+                unit: device.id,
+                setting: DeviceSetting::Clipguard(enabled),
+                timing: EditTiming::Immediate,
+            });
+            if matches!(api, "5.3" | "5.4") {
+                let (job, unit, settings) = rig.device_job();
+                assert_eq!(unit, device.id);
+                assert_eq!(settings, vec![DeviceSetting::Clipguard(enabled)]);
+                rig.incoming
+                    .send(BackendEvent::DeviceFinished {
+                        job,
+                        unit,
+                        result: Ok(device.state.known().unwrap().clone()),
+                    })
+                    .unwrap();
+                assert!(matches!(
+                    rig.result(command),
+                    CommandOutcome::Applied { .. }
+                ));
+            } else {
+                assert!(
+                    matches!(rig.result(command), CommandOutcome::Rejected(error) if error.code == ErrorCode::Unsupported)
+                );
+                assert!(
+                    !rig.drain()
+                        .iter()
+                        .any(|command| matches!(command, BackendCommand::Device { .. }))
+                );
+                assert!(rig.handle.snapshot().unit_intents.is_empty());
+            }
+        }
+    }
 }
 fn unit(address: u8, serial: &str, muted: bool) -> UnitSnapshot {
     let profile = ProfileId::WaveXlr;
