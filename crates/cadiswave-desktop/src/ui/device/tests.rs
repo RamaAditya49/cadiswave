@@ -197,3 +197,53 @@ fn language_change_preserves_an_admitted_device_edit() {
         75 * 256 / 2
     );
 }
+
+#[test]
+#[ignore = "Requires the isolated GTK runner"]
+fn native_device_controls_have_translated_accessible_labels() {
+    use crate::ui::test_support::{Rig, descendants, unit};
+    use adw::prelude::*;
+    gtk::init().unwrap();
+    let rig = Rig::new(serde_json::json!({}), vec![unit("A", 2, -12.0)]);
+    let locale = std::rc::Rc::new(std::cell::RefCell::new(
+        crate::i18n::I18n::new(cadiswave_core::locale::LanguageChoice::English, "en").unwrap(),
+    ));
+    crate::i18n::activate(locale.clone());
+    let page = DevicePage::new(controls::DeviceControls::new(rig.handle()), locale.clone());
+    let compact =
+        compact::CompactControls::new(controls::DeviceControls::new(rig.handle()), locale.clone());
+    for language in [
+        cadiswave_core::locale::LanguageChoice::English,
+        cadiswave_core::locale::LanguageChoice::Indonesian,
+    ] {
+        locale.borrow_mut().set_choice(language, "en").unwrap();
+        crate::i18n::retranslate();
+        for root in [
+            page.widget.upcast_ref::<gtk::Widget>(),
+            compact.widget.upcast_ref::<gtk::Widget>(),
+        ] {
+            let scales = descendants::<gtk::Scale>(root);
+            assert_eq!(scales.len(), 2);
+            for scale in scales {
+                assert!(gtk::test_accessible_has_relation(
+                    &scale,
+                    gtk::AccessibleRelation::LabelledBy
+                ));
+            }
+            let switches = descendants::<gtk::Switch>(root);
+            assert_eq!(switches.len(), 1);
+            assert!(gtk::test_accessible_has_relation(
+                &switches[0],
+                gtk::AccessibleRelation::LabelledBy
+            ));
+            let labels = descendants::<gtk::Label>(root);
+            for key in ["dial-control", "mode-headphones", "low-impedance"] {
+                assert!(
+                    labels
+                        .iter()
+                        .any(|label| label.text() == crate::i18n::tr(key))
+                );
+            }
+        }
+    }
+}

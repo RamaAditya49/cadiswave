@@ -748,6 +748,13 @@ pub struct CalibrationToken {
     pub channels: u32,
 }
 #[derive(Debug, Clone, PartialEq)]
+pub struct CalibrationMeasurements {
+    pub noise_floor_db: f64,
+    pub quiet_voice_db: f64,
+    pub loud_voice_db: f64,
+    pub quiet_channel: bool,
+}
+#[derive(Debug, Clone, PartialEq)]
 pub enum CalibrationPhase {
     NoiseReady,
     RecordingNoise,
@@ -755,7 +762,7 @@ pub enum CalibrationPhase {
     RecordingSpeech,
     Review {
         proposal: FxSettings,
-        summary: String,
+        summary: CalibrationMeasurements,
     },
     Expired(String),
 }

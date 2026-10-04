@@ -1036,6 +1036,12 @@ impl AppUi {
             }
             crate::i18n::retranslate();
             self.device_settings.retranslate();
+            if let (Some(calibration), Some(dialog)) = (
+                self.calibration.borrow().as_ref(),
+                self.calibration_dialog.borrow().as_ref(),
+            ) {
+                crate::calibration::refresh(dialog, &calibration.phase);
+            }
             self.rendered_revision.set(None);
             self.menu_button.set_menu_model(Some(&application_menu()));
         }
@@ -1186,7 +1192,7 @@ impl AppUi {
             SetupPhase::Ready => return,
         };
         let dialog = adw::AlertDialog::builder()
-            .heading(heading)
+            .heading(crate::i18n::translate(heading))
             .body(&body)
             .build();
         dialog.add_response(
@@ -1277,35 +1283,38 @@ impl AppUi {
         if self.shutdown_requested.get() {
             return;
         }
-        let (heading, body) = match &calibration.phase {
-            CalibrationPhase::NoiseReady => ("Measure room noise", "Stay quiet for three seconds after pressing Record. Only the raw microphone is measured. Current effects and hardware gain stay unchanged; proposed settings require explicit confirmation.".to_string()),
-            CalibrationPhase::RecordingNoise => ("Recording room noise", "Please stay quiet.".to_string()),
-            CalibrationPhase::SpeechReady => ("Measure speech", "Speak normally for five seconds after pressing Record.".to_string()),
-            CalibrationPhase::RecordingSpeech => ("Recording speech", "Speak normally.".to_string()),
-            CalibrationPhase::Review { proposal, summary } => ("Review calibration", format!("{summary}\n\nGate: {:.1} dB\nCompressor: {:.1} dB, {:.1}:1\nLow cut: {} Hz\nHigh shelf: {:+.0} dB{}", proposal.gate_thresh, proposal.comp_thresh, proposal.comp_ratio, proposal.lowcut, proposal.eq_high, if proposal.mono { "\nMono: enabled" } else { "" })),
-            CalibrationPhase::Expired(message) => ("Calibration expired", format!("{message}\n\nNo proposed settings were applied. Repeat the measurements with the current input.")),
+        let heading = match &calibration.phase {
+            CalibrationPhase::NoiseReady => "Measure room noise",
+            CalibrationPhase::RecordingNoise => "Recording room noise",
+            CalibrationPhase::SpeechReady => "Measure speech",
+            CalibrationPhase::RecordingSpeech => "Recording speech",
+            CalibrationPhase::Review { .. } => "Review calibration",
+            CalibrationPhase::Expired(_) => "Calibration expired",
         };
+        let body = crate::calibration::body(&calibration.phase);
         let dialog = adw::AlertDialog::builder()
-            .heading(heading)
+            .heading(crate::i18n::translate(heading))
             .body(&body)
             .build();
         dialog.add_response(
             "cancel",
-            if matches!(calibration.phase, CalibrationPhase::Review { .. }) {
-                "Keep current settings"
-            } else {
-                "Cancel"
-            },
+            &crate::i18n::translate(
+                if matches!(calibration.phase, CalibrationPhase::Review { .. }) {
+                    "Keep current settings"
+                } else {
+                    "Cancel"
+                },
+            ),
         );
         dialog.set_close_response("cancel");
         dialog.set_default_response(Some("cancel"));
         match calibration.phase {
             CalibrationPhase::NoiseReady | CalibrationPhase::SpeechReady => {
-                dialog.add_response("record", "Record");
+                dialog.add_response("record", &crate::i18n::translate("Record"));
                 dialog.set_response_appearance("record", adw::ResponseAppearance::Suggested);
             }
             CalibrationPhase::Review { .. } => {
-                dialog.add_response("apply", "Apply");
+                dialog.add_response("apply", &crate::i18n::translate("Apply"));
                 dialog.set_response_appearance("apply", adw::ResponseAppearance::Suggested);
             }
             CalibrationPhase::RecordingNoise | CalibrationPhase::RecordingSpeech => {
@@ -1376,6 +1385,134 @@ mod tests {
     use crate::ui::test_support::{Rig, descendants};
     use std::time::Instant;
 
+    fn calibration_fixture() -> (Rig, Rc<AppUi>, CalibrationToken) {
+        adw::init().unwrap();
+        let rig = Rig::new(serde_json::json!({}), vec![]);
+        let application = adw::Application::builder()
+            .application_id("io.github.RamaAditya49.CadisWave.CalibrationTest")
+            .build();
+        application.register(None::<&gio::Cancellable>).unwrap();
+        let ui = AppUi::new(application, rig.paths(), rig.handle());
+        let token = CalibrationToken {
+            session: 1,
+            source: SourceId::new("fixture").unwrap(),
+            node_name: "fixture".into(),
+            identity: NodeIdentity {
+                server_cookie: 1,
+                object_serial: "1".into(),
+            },
+            channels: 1,
+        };
+        (rig, ui, token)
+    }
+    #[test]
+    #[ignore = "Requires the isolated GTK runner"]
+    fn calibration_review_translates_measurements_and_proposal() {
+        let (_rig, ui, token) = calibration_fixture();
+        for (language, expected) in [
+            (
+                cadiswave_core::locale::LanguageChoice::English,
+                "Noise floor:",
+            ),
+            (
+                cadiswave_core::locale::LanguageChoice::Indonesian,
+                "Batas kebisingan:",
+            ),
+        ] {
+            ui.i18n.borrow_mut().set_choice(language, "en").unwrap();
+            crate::i18n::activate(ui.i18n.clone());
+            ui.render_calibration(None);
+            ui.render_calibration(Some(&CalibrationSnapshot {
+                token: token.clone(),
+                phase: CalibrationPhase::Review {
+                    proposal: cadiswave_core::effects::FxSettings {
+                        mono: true,
+                        ..Default::default()
+                    },
+                    summary: CalibrationMeasurements {
+                        noise_floor_db: -60.0,
+                        quiet_voice_db: -30.0,
+                        loud_voice_db: -12.0,
+                        quiet_channel: true,
+                    },
+                },
+            }));
+            let dialog = ui.calibration_dialog.borrow();
+            let body = dialog.as_ref().unwrap().body();
+            assert!(body.contains(expected), "{body}");
+            assert!(body.contains("-60.0 dB"));
+            assert!(body.contains("-30.0 / -12.0 dB"));
+            assert_eq!(
+                body.matches(
+                    if language == cadiswave_core::locale::LanguageChoice::English {
+                        "Gate:"
+                    } else {
+                        "Ambang gate:"
+                    }
+                )
+                .count(),
+                1
+            );
+            assert!(body.contains(
+                if language == cadiswave_core::locale::LanguageChoice::English {
+                    "one channel is very quiet"
+                } else {
+                    "satu kanal sangat pelan"
+                }
+            ));
+            assert_eq!(
+                dialog.as_ref().unwrap().heading().unwrap(),
+                crate::i18n::tr("ui-review-calibration")
+            );
+            assert!(body.contains(
+                if language == cadiswave_core::locale::LanguageChoice::English {
+                    "Compressor:"
+                } else {
+                    "Kompresor:"
+                }
+            ));
+        }
+        let generation = ui.calibration_generation.get();
+        let mut snapshot = (*ui.latest.borrow()).as_ref().clone();
+        Arc::make_mut(&mut snapshot.preferences).language =
+            cadiswave_core::locale::LanguageChoice::English;
+        *ui.latest.borrow_mut() = Arc::new(snapshot);
+        ui.render_widgets();
+        let dialog = ui.calibration_dialog.borrow();
+        assert!(dialog.as_ref().unwrap().body().contains("Noise floor:"));
+        assert_eq!(
+            dialog.as_ref().unwrap().heading().unwrap(),
+            "Review calibration"
+        );
+        assert_eq!(ui.calibration_generation.get(), generation);
+    }
+    #[test]
+    #[ignore = "Requires the isolated GTK runner"]
+    fn calibration_expiry_translates_recovery_and_preserves_error() {
+        let (_rig, ui, token) = calibration_fixture();
+        for (language, expected) in [
+            (
+                cadiswave_core::locale::LanguageChoice::English,
+                "No proposed settings were applied.",
+            ),
+            (
+                cadiswave_core::locale::LanguageChoice::Indonesian,
+                "Tidak ada pengaturan usulan yang diterapkan.",
+            ),
+        ] {
+            ui.i18n.borrow_mut().set_choice(language, "en").unwrap();
+            crate::i18n::activate(ui.i18n.clone());
+            ui.render_calibration(None);
+            ui.render_calibration(Some(&CalibrationSnapshot {
+                token: token.clone(),
+                phase: CalibrationPhase::Expired("EXACT_BACKEND_ERROR: input replaced".into()),
+            }));
+            let dialog = ui.calibration_dialog.borrow();
+            let body = dialog.as_ref().unwrap().body();
+            assert!(body.starts_with("EXACT_BACKEND_ERROR: input replaced\n\n"));
+            assert!(body.contains(expected), "{body}");
+        }
+    }
     #[test]
     #[ignore = "requires the isolated installed GTK test runner"]
     fn device_gallery_renders_both_languages_and_small_windows() {

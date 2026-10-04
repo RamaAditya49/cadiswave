@@ -1,5 +1,6 @@
 pub mod actions;
 pub mod app;
+mod calibration;
 pub mod i18n;
 pub mod icons;
 pub mod tray;

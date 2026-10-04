@@ -315,3 +315,13 @@ monitor-mix-available = Open the device panel in Mixer to adjust the hardware mo
 hardware-mute-link = Follow hardware mute
 hardware-mute-link-target = Mute follows { $device }.
 hardware-mute-link-unavailable = Select a connected device before enabling this option.
+
+calibration-noise = Noise floor: { $value } dB
+calibration-speech = Quiet / loud speech: { $quiet } / { $loud } dB
+calibration-gate = Gate: { $value } dB
+calibration-compressor = Compressor: { $threshold } dB, { $ratio }:1
+calibration-low-cut = Low cut: { $frequency } Hz
+calibration-high-shelf = High shelf: { $value } dB
+calibration-mono-enabled = Mono: enabled
+calibration-mono-quiet = Mono: enabled (one channel is very quiet)
+calibration-expired-help = No proposed settings were applied. Repeat the measurements with the current input.

@@ -322,20 +322,12 @@ impl Controller {
                     return;
                 }
             };
-            let mut summary = format!(
-                "Noise floor: {:.1} dB\nQuiet / loud speech: {:.1} / {:.1} dB\n\nGate: {:.1} dB\nCompressor: {:.1} dB, {:.1}:1\nLow cut: {} Hz\nHigh shelf: {:+.0} dB",
-                analysis.measured.floor_db,
-                analysis.measured.quiet_voice_db,
-                analysis.measured.loud_voice_db,
-                settings.gate_thresh,
-                settings.comp_thresh,
-                settings.comp_ratio,
-                settings.lowcut,
-                settings.eq_high
-            );
-            if tone.mono == Some(true) {
-                summary.push_str("\nMono: enabled (one channel is very quiet)");
-            }
+            let summary = CalibrationMeasurements {
+                noise_floor_db: analysis.measured.floor_db,
+                quiet_voice_db: analysis.measured.quiet_voice_db,
+                loud_voice_db: analysis.measured.loud_voice_db,
+                quiet_channel: tone.mono == Some(true),
+            };
             self.calibration.as_mut().expect("current session").proposal = Some((analysis, tone));
             self.calibration_phase(CalibrationPhase::Review {
                 proposal: settings,

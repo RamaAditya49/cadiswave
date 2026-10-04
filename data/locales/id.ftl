@@ -315,3 +315,13 @@ monitor-mix-available = Buka panel perangkat di Mixer untuk mengatur mix monitor
 hardware-mute-link = Ikuti mute perangkat
 hardware-mute-link-target = Mute mengikuti { $device }.
 hardware-mute-link-unavailable = Pilih perangkat terhubung sebelum mengaktifkan opsi ini.
+
+calibration-noise = Batas kebisingan: { $value } dB
+calibration-speech = Suara pelan / keras: { $quiet } / { $loud } dB
+calibration-gate = Ambang gate: { $value } dB
+calibration-compressor = Kompresor: { $threshold } dB, { $ratio }:1
+calibration-low-cut = Potong frekuensi rendah: { $frequency } Hz
+calibration-high-shelf = Penguatan frekuensi tinggi: { $value } dB
+calibration-mono-enabled = Mono: aktif
+calibration-mono-quiet = Mono: aktif (satu kanal sangat pelan)
+calibration-expired-help = Tidak ada pengaturan usulan yang diterapkan. Ulangi pengukuran dengan input saat ini.

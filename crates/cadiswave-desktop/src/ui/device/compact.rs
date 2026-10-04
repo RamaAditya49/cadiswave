@@ -64,15 +64,23 @@ impl CompactControls {
         let mute = gtk::Button::new();
         mute.add_css_class("cadiswave-mute-button");
         widget.append(&mute);
-        widget.append(&label("dial-control", "cadiswave-caption"));
+        let dial_label = label("dial-control", "cadiswave-caption");
+        widget.append(&dial_label);
         let value = gtk::Label::new(None);
         value.add_css_class("cadiswave-reading");
         widget.append(&value);
         let gain = gtk::Scale::with_range(gtk::Orientation::Horizontal, 0.0, 1.0, 0.005);
         gain.set_draw_value(false);
+        gain.update_relation(&[gtk::accessible::Relation::LabelledBy(&[
+            dial_label.upcast_ref()
+        ])]);
         widget.append(&gain);
-        widget.append(&label("mode-headphones", "cadiswave-caption"));
+        let headphone_label = label("mode-headphones", "cadiswave-caption");
+        widget.append(&headphone_label);
         let hp = gtk::Scale::with_range(gtk::Orientation::Horizontal, -128.0, 0.0, 0.5);
+        hp.update_relation(&[gtk::accessible::Relation::LabelledBy(&[
+            headphone_label.upcast_ref()
+        ])]);
         hp.set_draw_value(true);
         hp.set_digits(1);
         widget.append(&hp);
@@ -81,6 +89,7 @@ impl CompactControls {
         title.set_hexpand(true);
         row.append(&title);
         let low_z = gtk::Switch::new();
+        low_z.update_relation(&[gtk::accessible::Relation::LabelledBy(&[title.upcast_ref()])]);
         row.append(&low_z);
         widget.append(&row);
         let meters = Meters::new();
@@ -181,11 +190,33 @@ impl CompactControls {
                 .as_ref()
                 .zip(p.unit)
                 .map(|(s, id)| {
-                    format!(
-                        "{}   {:.1} dB",
-                        crate::i18n::tr("mic-gain"),
-                        f64::from(s.gain_raw) / f64::from(id.profile.profile().gain_scale)
-                    )
+                    use cadiswave_core::protocol::KnobMode;
+                    let (key, reading) = match s.knob_mode {
+                        KnobMode::Gain => (
+                            "mode-gain",
+                            format!(
+                                "{:.1} dB",
+                                f64::from(s.gain_raw) / f64::from(id.profile.profile().gain_scale)
+                            ),
+                        ),
+                        KnobMode::Headphones => {
+                            ("mode-headphones", format!("{:.1} dB", s.hp_volume_db))
+                        }
+                        KnobMode::MonitorMix => (
+                            "mode-monitor",
+                            s.monitor_mix
+                                .map(|value| {
+                                    format!(
+                                        "{:.0}%",
+                                        f64::from(value) * 100.0
+                                            / f64::from(id.profile.profile().mix_max)
+                                    )
+                                })
+                                .unwrap_or_else(|| crate::i18n::tr("unknown-reading")),
+                        ),
+                        KnobMode::None => return crate::i18n::tr("unknown-reading"),
+                    };
+                    format!("{}   {reading}", crate::i18n::tr(key))
                 })
                 .unwrap_or_else(|| crate::i18n::tr("unknown-reading")),
         );
@@ -204,5 +235,59 @@ impl CompactControls {
     }
     pub fn retranslate(&self) {
         crate::i18n::retranslate();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ui::test_support::{Rig, unit};
+    #[test]
+    #[ignore = "Requires the isolated GTK runner"]
+    fn compact_reading_follows_confirmed_dial_mode() {
+        gtk::init().unwrap();
+        for language in [
+            cadiswave_core::locale::LanguageChoice::English,
+            cadiswave_core::locale::LanguageChoice::Indonesian,
+        ] {
+            let locale = Rc::new(RefCell::new(
+                crate::i18n::I18n::new(language, "en").unwrap(),
+            ));
+            crate::i18n::activate(locale.clone());
+            for monitor in [false, true] {
+                let mut device = unit("A", 2, -12.0);
+                if let Observation::Known(state) = &mut device.state {
+                    state.knob_mode = cadiswave_core::protocol::KnobMode::Headphones;
+                }
+                if monitor {
+                    device.id.profile = cadiswave_core::profiles::ProfileId::Wave3;
+                    if let Observation::Known(state) = &mut device.state {
+                        state.knob_mode = cadiswave_core::protocol::KnobMode::MonitorMix;
+                        state.monitor_mix = Some(25 * 256);
+                    }
+                }
+                let rig = Rig::new(serde_json::json!({}), vec![device]);
+                let compact =
+                    CompactControls::new(DeviceControls::new(rig.handle()), locale.clone());
+                compact.render(&rig.snapshot());
+                let mode = crate::i18n::tr(if monitor {
+                    "mode-monitor"
+                } else {
+                    "mode-headphones"
+                });
+                assert!(
+                    compact.value.text().contains(&mode),
+                    "{}",
+                    compact.value.text()
+                );
+                assert!(
+                    compact
+                        .value
+                        .text()
+                        .contains(if monitor { "25%" } else { "-12.0 dB" })
+                );
+                assert_eq!(rig.device_command_count(), 0);
+            }
+        }
     }
 }

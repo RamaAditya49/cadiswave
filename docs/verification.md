@@ -11,8 +11,8 @@ The installed application uses the host runtime libraries.
 | --- | --- |
 | Cargo formatting | Passed |
 | Clippy, all workspace targets, warnings denied | Passed |
-| Workspace tests | 418 passed; 37 marked ignored |
-| Isolated GTK tests | All 20 display tests passed |
+| Workspace tests | 418 passed; 41 marked ignored |
+| Isolated GTK tests | All 24 display tests passed |
 | Release binaries and runtime examples | Built with the locked dependency set |
 | Installed application smoke | Passed with private audio, GTK, D-Bus, and device isolation |
 | Desktop entry and AppStream | Validated |
@@ -24,6 +24,16 @@ CI runs the separate private RPM ownership check.
 Smoke checks cover actual PCM levels, mute, scenes, output selection, graph repair, server replacement, and worker shutdown.
 They also cover tray-host loss, host return, and installed application actions.
 Device-free checks do not establish physical hardware support.
+
+The final review found three important issues.
+Four failing GTK regressions reproduced them before correction.
+Compact readings now follow the confirmed dial mode.
+Device controls have translated accessible labels.
+Calibration measurements and recovery messages use Fluent parameters.
+Exact backend errors remain unchanged.
+The review dialog changes language without replacing its response generation.
+All four regressions and the complete software checks passed after correction.
+No minor review findings remain deferred.
 
 ## Physical acceptance
 

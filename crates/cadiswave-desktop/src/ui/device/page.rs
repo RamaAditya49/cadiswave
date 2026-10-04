@@ -108,7 +108,12 @@ impl DevicePage {
         let knob = Knob::new(controls.clone());
         face.append(&knob.widget);
         device.append(&face);
-        device.append(&label("dial-control", "cadiswave-caption"));
+        let dial_label = label("dial-control", "cadiswave-caption");
+        knob.scale
+            .update_relation(&[gtk::accessible::Relation::LabelledBy(&[
+                dial_label.upcast_ref()
+            ])]);
+        device.append(&dial_label);
         let phantom = label("phantom-indicator", "dim-label");
         device.append(&phantom);
         let pending = label("pending-control", "cadiswave-pending");
@@ -126,13 +131,17 @@ impl DevicePage {
         right.set_width_request(280);
         right.set_hexpand(false);
         let hp = panel();
-        hp.append(&label("mode-headphones", "cadiswave-caption"));
+        let headphone_label = label("mode-headphones", "cadiswave-caption");
+        hp.append(&headphone_label);
         let headphone_value = gtk::Label::new(None);
         headphone_value.set_xalign(0.0);
         headphone_value.add_css_class("cadiswave-reading");
         hp.append(&headphone_value);
         let headphone = gtk::Scale::with_range(gtk::Orientation::Horizontal, -128.0, 0.0, 0.5);
         headphone.set_draw_value(false);
+        headphone.update_relation(&[gtk::accessible::Relation::LabelledBy(&[
+            headphone_label.upcast_ref()
+        ])]);
         hp.append(&headphone);
         let low = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         let title = label("low-impedance", "");
@@ -140,6 +149,7 @@ impl DevicePage {
         title.set_wrap(true);
         low.append(&title);
         let low_z = gtk::Switch::new();
+        low_z.update_relation(&[gtk::accessible::Relation::LabelledBy(&[title.upcast_ref()])]);
         low_z.set_valign(gtk::Align::Center);
         low.append(&low_z);
         hp.append(&low);
