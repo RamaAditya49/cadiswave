@@ -604,8 +604,8 @@ pub fn default_mixes() -> Mixes {
     .collect()
 }
 
-pub const MIN_WINDOW_WIDTH: i32 = 640;
-pub const MIN_WINDOW_HEIGHT: i32 = 480;
+pub const MIN_WINDOW_WIDTH: i32 = 1024;
+pub const MIN_WINDOW_HEIGHT: i32 = 720;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Preferences {

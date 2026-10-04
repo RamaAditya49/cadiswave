@@ -101,9 +101,9 @@ Files: desktop device settings modules, Fluent catalogs, CSS, GTK tests.
 
 - [x] Test saved dimensions, small monitors, logical dimensions, and invalid monitor data.
 - [x] Fit initial and restored dimensions to the current monitor.
-- [x] Use the same 640 by 480 minimum in preference loading, controller updates, and window construction.
+- [x] Use the same 1024 by 720 minimum in preference loading, controller updates, and window construction.
 - [x] Compact the narrow device layout without changing device commands.
-- [x] Inspect 800 by 600 and 640 by 480 renders and verify primary controls remain visible.
+- [x] Verify smaller resize requests respect the minimum and inspect the 1024 by 720 render.
 
 ## Execution notes
 

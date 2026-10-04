@@ -1443,7 +1443,7 @@ mod tests {
 
     #[test]
     #[ignore = "requires the isolated installed GTK test runner"]
-    fn main_window_geometry_and_controls_fit_small_monitor_viewports() {
+    fn main_window_geometry_and_controls_respect_minimum_size() {
         adw::init().unwrap();
         let data = crate::ui::test_support::asset_paths().data;
         let css = if data.join("style.css").exists() {
@@ -1489,7 +1489,7 @@ mod tests {
             (ui.window.default_width(), ui.window.default_height()),
             geometry::fit_size((i32::MAX, i32::MAX), monitor_dimensions(Some(&ui.window)))
         );
-        for (width, height) in [(800, 600), (640, 480)] {
+        for (width, height) in [(800, 600), (640, 480), geometry::MIN_SIZE] {
             ui.window.set_default_size(width, height);
             ui.window.present();
             let deadline = Instant::now() + Duration::from_millis(300);
@@ -1499,8 +1499,17 @@ mod tests {
                 }
                 std::thread::sleep(Duration::from_millis(5));
             }
-            assert!(ui.window.width() <= width && ui.window.height() <= height);
-            assert!(!ui.title.is_visible());
+            assert_eq!(
+                {
+                    let surface = ui.window.surface().unwrap();
+                    (surface.width(), surface.height())
+                },
+                (
+                    width.max(geometry::MIN_SIZE.0),
+                    height.max(geometry::MIN_SIZE.1)
+                )
+            );
+            assert!(ui.title.is_visible());
             assert_main_controls_in_view(&ui);
         }
         assert_eq!(rig.device_command_count(), 0);
@@ -1762,11 +1771,9 @@ mod tests {
         }
         ui.window.set_default_size(1024, 768);
         shot("device-1024");
-        ui.window.set_default_size(800, 600);
-        shot("device-800");
-        assert_main_controls_in_view(&ui);
-        ui.window.set_default_size(640, 480);
-        shot("device-640");
+        ui.window
+            .set_default_size(geometry::MIN_SIZE.0, geometry::MIN_SIZE.1);
+        shot("device-minimum");
         assert_main_controls_in_view(&ui);
         let dialog = adw::AlertDialog::builder()
             .heading(crate::i18n::tr("rate-confirm-title"))

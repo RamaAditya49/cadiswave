@@ -163,9 +163,11 @@ Final local evidence remains outside Git:
 - Microphone stress run: `/tmp/cadiswave-smoke.4z2aNCYY/evidence/`.
 
 The initial window now fits saved dimensions within 90 percent of the current logical monitor dimensions.
-The application keeps manual resizing and maximized state, with a 640 by 480 minimum.
+The application keeps manual resizing and maximized state, with a 1024 by 720 minimum.
 The narrow layout places the gain value beside a compact knob and keeps primary controls visible.
-Rendered layouts and viewport assertions passed at 800 by 600 and 640 by 480 logical pixels.
+The initial 640 by 480 and 800 by 600 layouts passed before Rama requested a larger minimum.
+The revised 1024 by 720 minimum passed geometry, preference, and GTK viewport checks.
+Smaller saved sizes and resize requests now use the larger minimum.
 
 ## Current limits
 

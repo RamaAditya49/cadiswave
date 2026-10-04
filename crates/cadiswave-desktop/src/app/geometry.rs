@@ -29,14 +29,14 @@ mod tests {
     #[test]
     fn default_size_and_valid_saved_size_fit_large_monitors() {
         assert_eq!(fit_size(DEFAULT_SIZE, Some((1920, 1080))), DEFAULT_SIZE);
-        assert_eq!(fit_size((900, 650), Some((1920, 1080))), (900, 650));
+        assert_eq!(fit_size((1100, 750), Some((1920, 1080))), (1100, 750));
         assert_eq!(fit_size(MIN_SIZE, Some((1920, 1080))), MIN_SIZE);
     }
 
     #[test]
     fn smaller_monitors_bound_initial_and_oversized_saved_dimensions() {
-        assert_eq!(fit_size(DEFAULT_SIZE, Some((800, 600))), (720, 540));
-        assert_eq!(fit_size(DEFAULT_SIZE, Some((1280, 720))), (1152, 648));
+        assert_eq!(fit_size(DEFAULT_SIZE, Some((800, 600))), MIN_SIZE);
+        assert_eq!(fit_size(DEFAULT_SIZE, Some((1280, 720))), (1152, 720));
         assert_eq!(fit_size((3840, 2160), Some((1920, 1080))), (1728, 972));
         assert_eq!(fit_size(DEFAULT_SIZE, Some(MIN_SIZE)), MIN_SIZE);
     }
@@ -51,7 +51,7 @@ mod tests {
     fn unknown_monitor_and_invalid_preferences_have_bounded_fallbacks() {
         for monitor in [None, Some((0, 1080)), Some((1920, 0)), Some((-1, 1080))] {
             assert_eq!(fit_size((i32::MAX, i32::MAX), monitor), DEFAULT_SIZE);
-            assert_eq!(fit_size((900, 650), monitor), (900, 650));
+            assert_eq!(fit_size((1100, 750), monitor), (1100, 750));
             assert_eq!(fit_size((0, -1), monitor), DEFAULT_SIZE);
         }
         assert_eq!(fit_size((1, 1), Some((1920, 1080))), MIN_SIZE);

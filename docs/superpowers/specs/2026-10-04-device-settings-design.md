@@ -47,7 +47,8 @@ Keep device persistence separate from application persistence.
 
 Rama requested an adaptive initial window after the first 800 by 600 layout clipped the main controls.
 Fit the initial and restored size to the monitor's logical dimensions.
-Use up to 90 percent of each monitor dimension, with a minimum of 640 by 480.
+Use up to 90 percent of each monitor dimension, subject to the minimum of 1024 by 720.
+Rama increased the minimum after the first host update to keep the three-column layout spacious.
 Preserve saved dimensions when they fit the current monitor.
 Keep manual resizing and maximized state.
 Use compact horizontal gain and knob controls in the narrow single-column layout.
