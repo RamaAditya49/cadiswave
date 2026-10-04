@@ -1,4 +1,5 @@
 pub(crate) mod components;
+pub mod device;
 pub mod dialogs;
 pub mod matrix;
 pub mod sidebar;

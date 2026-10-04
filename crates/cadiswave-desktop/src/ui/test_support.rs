@@ -60,6 +60,8 @@ struct FixtureState {
     shutdown: bool,
     shutdown_attempts: usize,
     fail_shutdown_once: bool,
+    device_command_count: usize,
+    fail_device_once: bool,
 }
 
 // Preserve poisoned state for diagnostics and shutdown rather than unwrap it.
@@ -117,8 +119,12 @@ impl Backend for FixtureBackend {
             } => {
                 if settings.is_empty()
                     || settings.iter().any(|setting| {
-                        !matches!(setting, DeviceSetting::Mute(_))
-                            && !matches!(setting, DeviceSetting::HeadphoneDb(db)
+                        !matches!(
+                            setting,
+                            DeviceSetting::Mute(_)
+                                | DeviceSetting::GainRaw(_)
+                                | DeviceSetting::LowImpedance(_)
+                        ) && !matches!(setting, DeviceSetting::HeadphoneDb(db)
                         if db.is_finite() && (-60.0..=0.0).contains(db))
                     })
                 {
@@ -127,6 +133,11 @@ impl Backend for FixtureBackend {
                     );
                 }
                 let mut state = fixture_state(&self.state);
+                state.device_command_count += 1;
+                if state.fail_device_once {
+                    state.fail_device_once = false;
+                    return Err(OperationError::unavailable("fixture device write failed"));
+                }
                 let Some(observed) = state
                     .units
                     .iter_mut()
@@ -144,6 +155,10 @@ impl Backend for FixtureBackend {
                     match setting {
                         DeviceSetting::HeadphoneDb(db) => device.hp_volume_db = db,
                         DeviceSetting::Mute(muted) => device.muted = muted,
+                        DeviceSetting::GainRaw(raw) => {
+                            device.gain_raw = raw.min(unit.profile.profile().gain_max)
+                        }
+                        DeviceSetting::LowImpedance(value) => device.low_impedance = Some(value),
                         _ => unreachable!("validated fixture setting"),
                     }
                 }
@@ -382,6 +397,30 @@ impl Rig {
     }
     pub(crate) fn submitted_targets(&self) -> Vec<UnitId> {
         self.targets.borrow().clone()
+    }
+    pub(crate) fn fail_next_device_command(&self) {
+        fixture_state(&self.state).fail_device_once = true;
+    }
+    pub(crate) fn outcome(&self, id: CommandId) -> CommandOutcome {
+        let deadline = Instant::now() + DEADLINE;
+        while !self.outcomes.borrow().contains_key(&id) {
+            let (next, outcome) = self
+                .completed
+                .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+                .unwrap();
+            self.outcomes.borrow_mut().insert(next, outcome);
+        }
+        self.outcomes.borrow().get(&id).unwrap().clone()
+    }
+    pub(crate) fn track(&self, id: CommandId) {
+        self.submitted.borrow_mut().push(id);
+    }
+    pub(crate) fn device_command_count(&self) -> usize {
+        fixture_state(&self.state).device_command_count
+    }
+    pub(crate) fn retire(&self, unit: UnitId) {
+        self.incoming.send(BackendEvent::UnitRetired(unit)).unwrap();
+        self.barrier("unit retired");
     }
     pub(crate) fn handle(&self) -> RuntimeHandle {
         self.handle.clone()
