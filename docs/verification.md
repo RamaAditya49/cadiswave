@@ -177,8 +177,27 @@ Original Wave XLR Clipguard and hardware low-cut remain unavailable.
 Other mapped models passed device-free checks but were not physically tested here.
 Read [hardware support](hardware-support.md) for exact profiles and evidence limits.
 
-The active host installation was not replaced during this task.
-Release payloads were staged and tested in a private namespace.
+Feature implementation used release payloads staged and tested in a private namespace.
+
+## Device settings host update
+
+Rama authorized the host update after the feature implementation on 2026-10-04.
+The user-prefix installation now contains the tested `eb77ee9` binaries.
+The desktop and capture daemon run those binaries; process executable hashes match the release build.
+The installer check passed against the new installation receipt.
+
+The update retained a private backup of the previous payload and configuration outside Git.
+The capture service stopped during file replacement, then restarted.
+PipeWire, pipewire-pulse, and WirePlumber retained their invocation identities.
+The default input, default output, input mute, input volume, and application configuration remained unchanged.
+Writable ALSA controls remained unchanged.
+The read-only playback channel map changed from inactive values to stereo when the desktop opened its output stream.
+
+The live settings dialog exposes sensitive software low-cut, built-in presets, Record, and monitor mix controls.
+AT-SPI inspection checked the current desktop PID, excluding stale accessibility entries.
+The new microphone actions are available on the actual session bus.
+The public runtime snapshot is readable. No host microphone recording was started.
+The unmapped original Wave XLR controls remain unavailable.
 
 The legacy Python source and configuration remain recoverable outside the active native source tree.
 See [migration](migration.md) for activation, processed capture mapping, and rollback instructions.
