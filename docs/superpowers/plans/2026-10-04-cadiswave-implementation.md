@@ -10,7 +10,7 @@
 
 **Spec:** [Approved design](../specs/2026-10-04-cadiswave-design.md)
 
-Status: native implementation verified. Final repository publication remains pending.
+Status: implementation, physical activation, repository rename, and main publication are complete.
 
 ## Global constraints
 
@@ -749,22 +749,22 @@ Keep screenshots and test logs outside Git.
 If physical session access remains unavailable, report that limit and retain the current working installation.
 Do not claim completed runtime migration from isolated test results.
 
-- [ ] Check GitHub and local destination availability immediately before the authorized rename.
-- [ ] Rename the existing GitHub repository without creating a replacement repository.
+- [x] Check GitHub and local destination availability immediately before the authorized rename.
+- [x] Rename the existing GitHub repository without creating a replacement repository.
 
 ```bash
 gh api --method PATCH repos/RamaAditya49/openwave -f name=cadiswave
 gh api repos/RamaAditya49/cadiswave --jq '{full_name, visibility, html_url}'
 ```
 
-- [ ] Rename the original checkout directory after verifying the destination does not exist.
+- [x] Rename the original checkout directory after verifying the destination does not exist.
 
 ```bash
 mv /home/ramaaditya/Project/openwave /home/ramaaditya/Project/cadiswave
 ```
 
-- [ ] Update worktree administration paths with `git worktree repair` when required.
-- [ ] Set the renamed repository as `origin` and rikkichy as `upstream`.
+- [x] Update worktree administration paths with `git worktree repair` when required.
+- [x] Set the renamed repository as `origin` and rikkichy as `upstream`.
 
 ```bash
 git remote rename origin upstream
@@ -773,11 +773,11 @@ git remote set-url origin git@github.com:RamaAditya49/cadiswave.git
 git remote -v
 ```
 
-- [ ] Recheck external branch state before pushing the verified implementation branch.
-- [ ] Integrate into `main` without a force-push after all required checks pass.
-- [ ] Use a normal merge when shared `main` advanced and resolve conflicts without discarding its changes.
-- [ ] Verify the pushed revision and the final local branch.
-- [ ] Scan tracked files for reference material, archives, private output, and obsolete active product identities.
+- [x] Recheck external branch state before pushing the verified implementation branch.
+- [x] Integrate into `main` without a force-push after all required checks pass.
+- [x] Use a normal merge when shared `main` advances. Shared `main` was unchanged; integration used a fast-forward.
+- [x] Verify the pushed revision and the final local branch.
+- [x] Scan tracked files for reference material, archives, private output, and obsolete active product identities.
 
 ```bash
 git diff --check
@@ -786,7 +786,7 @@ git ls-files
 git log -1 --format='%h %s%n%b'
 ```
 
-- [ ] Report the repository URL, local path, revision, test results, unsupported controls, and physical verification state.
+- [x] Report the repository URL, local path, revision, test results, unsupported controls, and physical verification state.
 
 ## Coverage map
 

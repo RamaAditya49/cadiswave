@@ -1,6 +1,10 @@
 # CadisWave verification
 
 Verified locally on 2026-10-04 with Rust 1.98.1.
+The public repository is [RamaAditya49/cadiswave](https://github.com/RamaAditya49/cadiswave).
+The original repository identity and history remain intact.
+Local main contains the verified implementation.
+Origin points to CadisWave; upstream points to rikkichy/OpenWave.
 The host runs Zorin OS 18.1, GTK 4.14.5, libadwaita 1.5.0, and PipeWire 1.0.5.
 Build dependencies came from an extracted Ubuntu development SDK.
 The installed application uses the host runtime libraries.
@@ -34,6 +38,8 @@ Exact backend errors remain unchanged.
 The review dialog changes language without replacing its response generation.
 All four regressions and the complete software checks passed after correction.
 No minor review findings remain deferred.
+The final native Wayland installation retained the default input, mute, and 75 dB gain.
+Live accessibility inspection confirmed the dial, headphone, and low-impedance control names.
 
 ## Physical acceptance
 
