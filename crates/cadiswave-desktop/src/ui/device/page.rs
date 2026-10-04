@@ -9,7 +9,9 @@ use std::{
 pub fn label(key: &str, class: &str) -> gtk::Label {
     let label = gtk::Label::new(None);
     label.set_xalign(0.0);
-    label.add_css_class(class);
+    if !class.is_empty() {
+        label.add_css_class(class);
+    }
     crate::i18n::bind(&label, "label", key);
     label
 }
@@ -284,6 +286,24 @@ impl DevicePage {
                     )
                 })
                 .unwrap_or_else(|| crate::i18n::tr("unknown-reading")),
+        );
+        self.dial_value.set_text(
+            &state
+                .zip(p.unit)
+                .map(|(s, id)| match s.knob_mode {
+                    KnobMode::Gain => format!(
+                        "{:.1} dB",
+                        f64::from(s.gain_raw) / f64::from(id.profile.profile().gain_scale)
+                    ),
+                    KnobMode::Headphones => format!("{:.1} dB", s.hp_volume_db),
+                    KnobMode::MonitorMix => format!(
+                        "{:.0}%",
+                        f64::from(s.monitor_mix.unwrap_or(0)) * 100.0
+                            / f64::from(id.profile.profile().mix_max)
+                    ),
+                    _ => "—".into(),
+                })
+                .unwrap_or_else(|| "—".into()),
         );
         self.phantom
             .set_opacity(if state.is_some_and(|s| s.phantom == Some(true)) {

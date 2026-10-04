@@ -389,10 +389,10 @@ impl Controller {
                     preferences.language = language;
                 }
                 if let Some(width) = changes.width {
-                    preferences.width = width.max(820);
+                    preferences.width = width.max(800);
                 }
                 if let Some(height) = changes.height {
-                    preferences.height = height.max(480);
+                    preferences.height = height.max(600);
                 }
                 if let Some(maximized) = changes.maximized {
                     preferences.maximized = maximized;

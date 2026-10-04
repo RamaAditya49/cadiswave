@@ -144,6 +144,7 @@ struct AppUi {
     split: adw::OverlaySplitView,
     pages: gtk::Stack,
     device_page: crate::ui::device::DevicePage,
+    device_settings: crate::ui::device::settings::DeviceSettings,
     event_tail: RefCell<Option<cadiswave_runtime::events::EventTail>>,
     title: adw::WindowTitle,
     warning: gtk::MenuButton,
@@ -247,6 +248,10 @@ impl AppUi {
                 .tooltip_text("Application menu")
                 .build();
             header.pack_end(&menu_button);
+            let settings_button = gtk::Button::from_icon_name("emblem-system-symbolic");
+            settings_button.set_action_name(Some("win.settings"));
+            crate::i18n::bind(&settings_button, "tooltip-text", "hardware-settings");
+            header.pack_end(&settings_button);
             let reconnect = gtk::Button::builder()
                 .icon_name("view-refresh-symbolic")
                 .tooltip_text("Reconnect")
@@ -321,6 +326,10 @@ impl AppUi {
                 sidebar: RefCell::new(sidebar),
                 split,
                 pages,
+                device_settings: crate::ui::device::settings::DeviceSettings::new(
+                    crate::ui::device::controls::DeviceControls::new(handle.clone()),
+                    i18n.clone(),
+                ),
                 device_page,
                 event_tail: RefCell::new(cadiswave_runtime::events::EventTail::start().ok()),
                 title,
@@ -403,14 +412,20 @@ impl AppUi {
         settings.connect_activate(move |_, _| {
             if let Some(ui) = weak.upgrade() {
                 ui.present_main_window(false);
-                ui.pages.set_visible_child_name("mixer");
-                ui.split.set_show_sidebar(true);
-                let sidebar = ui.sidebar.borrow();
-                sidebar.render(ui.handle.snapshot());
-                sidebar.focus_settings();
+                ui.device_settings.render(&ui.handle.snapshot());
+                ui.device_settings.dialog.present(Some(&ui.window));
             }
         });
         ui.window.add_action(&settings);
+        let mixer = gio::SimpleAction::new("mixer", None);
+        let weak = Rc::downgrade(&ui);
+        mixer.connect_activate(move |_, _| {
+            if let Some(ui) = weak.upgrade() {
+                ui.device_settings.dialog.close();
+                ui.pages.set_visible_child_name("mixer");
+            }
+        });
+        ui.window.add_action(&mixer);
         let about = gio::SimpleAction::new("about", None);
         let weak = Rc::downgrade(&ui);
         about.connect_activate(move |_, _| {
@@ -776,6 +791,10 @@ impl AppUi {
                 }
             }
             RuntimeEvent::CommandFinished { id, result } => {
+                if self.device_settings.completed(id, &result) {
+                    self.refresh(self.handle.snapshot());
+                    return;
+                }
                 if self.uninstall_command.get() == Some(id) {
                     if let CommandOutcome::Rejected(error) = &result {
                         if !self.uninstall_result.get() {
@@ -946,10 +965,12 @@ impl AppUi {
                 log::error!("{error}");
             }
             crate::i18n::retranslate();
+            self.device_settings.retranslate();
             self.rendered_revision.set(None);
             self.menu_button.set_menu_model(Some(&application_menu()));
         }
         self.device_page.render(&snapshot);
+        self.device_settings.render(&snapshot);
         self.pages
             .page(&self.device_page.widget)
             .set_title(&crate::i18n::tr("device-page"));

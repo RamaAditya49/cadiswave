@@ -7,3 +7,5 @@ mod page;
 #[cfg(test)]
 mod tests;
 pub use page::DevicePage;
+
+pub mod settings;
