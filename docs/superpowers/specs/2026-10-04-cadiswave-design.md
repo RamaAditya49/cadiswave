@@ -1,6 +1,6 @@
 # CadisWave desktop design
 
-Status: proposed for review. Product implementation has not started.
+Status: approved by Rama on 2026-10-04. Product implementation has not started.
 
 ## Purpose
 
