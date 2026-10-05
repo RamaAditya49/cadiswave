@@ -432,6 +432,7 @@ pub enum BackendEvent {
         service: String,
         setup_required: bool,
     },
+    ActivationFailed(OperationError),
     Error(OperationIssue),
 }
 

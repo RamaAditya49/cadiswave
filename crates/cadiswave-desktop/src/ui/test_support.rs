@@ -64,6 +64,8 @@ struct FixtureState {
     fail_device_once: bool,
     routing_command_count: usize,
     mic_command_count: usize,
+    activation_results: VecDeque<Result<()>>,
+    activation_attempts: usize,
 }
 
 // Preserve poisoned state for diagnostics and shutdown rather than unwrap it.
@@ -247,7 +249,16 @@ impl Backend for FixtureBackend {
             BackendCommand::Autostart { .. } => Err(self.forbidden("autostart")),
             BackendCommand::Setup { .. } => Err(self.forbidden("setup")),
             BackendCommand::Rescan => Err(self.forbidden("rescan")),
-            BackendCommand::Activate => Err(self.forbidden("activation")),
+            BackendCommand::Activate => {
+                let mut state = fixture_state(&self.state);
+                if let Some(result) = state.activation_results.pop_front() {
+                    state.activation_attempts += 1;
+                    result
+                } else {
+                    drop(state);
+                    Err(self.forbidden("activation"))
+                }
+            }
         }
     }
     fn next_event(&mut self) -> Option<BackendEvent> {
@@ -574,6 +585,20 @@ impl Rig {
     }
     pub(crate) fn fail_first_shutdown(&self) {
         fixture_state(&self.state).fail_shutdown_once = true;
+    }
+    pub(crate) fn fail_startup_activation(&self, error: OperationError) {
+        self.incoming
+            .send(BackendEvent::ActivationFailed(error))
+            .unwrap();
+        self.barrier("startup activation failed");
+    }
+    pub(crate) fn allow_activation(&self, result: Result<()>) {
+        fixture_state(&self.state)
+            .activation_results
+            .push_back(result);
+    }
+    pub(crate) fn activation_attempts(&self) -> usize {
+        fixture_state(&self.state).activation_attempts
     }
     pub(crate) fn shutdown_attempts(&self) -> usize {
         fixture_state(&self.state).shutdown_attempts

@@ -1097,6 +1097,48 @@ fn capture_removal_does_not_publish_topology_when_preferences_are_corrupt() {
 }
 
 #[test]
+fn startup_activation_failure_keeps_commands_available_and_preserves_unrelated_errors() {
+    let mut f = Rig::new(json!({}), json!({}), None);
+    f.incoming
+        .send(BackendEvent::ActivationFailed(OperationError::new(
+            ErrorCode::Busy,
+            "OpenWave service is active",
+        )))
+        .unwrap();
+    f.wait(|snapshot| matches!(snapshot.setup_phase, SetupPhase::ActivationFailed(_)));
+    assert_eq!(f.handle.snapshot().lifecycle, Lifecycle::Running);
+    assert!(!f.handle.snapshot().setup_required);
+    f.incoming
+        .send(BackendEvent::Error(OperationIssue {
+            target: "fixture unrelated".into(),
+            message: "Keep this error".into(),
+        }))
+        .unwrap();
+    f.barrier("unrelated error observed");
+    f.drain();
+    f.apply(AppCommand::ContinueSetup);
+    assert_eq!(f.handle.snapshot().setup_phase, SetupPhase::Ready);
+    assert_eq!(
+        *f.handle.snapshot().errors,
+        vec![OperationIssue {
+            target: "fixture unrelated".into(),
+            message: "Keep this error".into(),
+        }]
+    );
+    let commands = f.commands.try_iter().collect::<Vec<_>>();
+    assert!(
+        commands
+            .iter()
+            .any(|command| matches!(command, BackendCommand::Activate))
+    );
+    assert!(
+        !commands
+            .iter()
+            .any(|command| matches!(command, BackendCommand::Setup { .. }))
+    );
+}
+
+#[test]
 fn repeated_activation_failures_remain_retryable_without_running_host_setup() {
     let (release, activation) = mpsc::channel();
     let mut f = Rig::controlled(json!({}), json!({}), None, Some(activation), None);
@@ -1146,6 +1188,11 @@ fn repeated_activation_failures_remain_retryable_without_running_host_setup() {
             assert!(matches!(outcome, CommandOutcome::Applied { .. }));
             assert_eq!(f.handle.snapshot().setup_phase, SetupPhase::Ready);
             assert!(!f.handle.snapshot().setup_required);
+            assert!(
+                f.handle.snapshot().errors.is_empty(),
+                "Activation retry left a stale error: {:?}",
+                f.handle.snapshot().errors
+            );
         } else {
             assert!(matches!(outcome, CommandOutcome::Rejected(_)));
             assert!(matches!(

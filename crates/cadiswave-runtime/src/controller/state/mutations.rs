@@ -14,11 +14,16 @@ impl Controller {
             self.finish(id, CommandOutcome::Cancelled);
             return;
         }
+        let failure_target = if matches!(command, AppCommand::ContinueSetup) {
+            "activation"
+        } else {
+            "command"
+        };
         if let Err(error) = self.execute(id, command) {
             if let Some(request) = self.requests.get_mut(&id) {
                 request.waiting = false;
             }
-            self.operation_failure(Some(id), "command".into(), error);
+            self.operation_failure(Some(id), failure_target.into(), error);
         }
         self.advance_handovers();
         self.finish_if_ready(id);
@@ -491,6 +496,7 @@ impl Controller {
                 }
                 self.view.setup_phase = SetupPhase::Ready;
                 self.view.setup_required = false;
+                self.clear_issue("activation");
                 self.dirty = true;
             }
             AppCommand::Reconnect => self.backend.dispatch(BackendCommand::Rescan)?,

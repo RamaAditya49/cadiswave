@@ -655,7 +655,7 @@ fn check_gui_owner(allowed: Option<&str>) -> Result<()> {
             }) {
                 return Err(OperationError::new(
                     ErrorCode::Busy,
-                    "OpenWave service is active; stop it before opening CadisWave",
+                    "OpenWave service is active. Stop openwave-tray.service and openwave.service before opening CadisWave.",
                 ));
             }
         }

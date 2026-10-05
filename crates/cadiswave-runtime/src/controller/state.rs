@@ -1139,6 +1139,11 @@ impl Controller {
                 }
                 self.dirty = true;
             }
+            BackendEvent::ActivationFailed(error) => {
+                self.view.setup_phase = SetupPhase::ActivationFailed(error.to_string());
+                self.issue("activation", error);
+                self.dirty = true;
+            }
             BackendEvent::Error(issue) => self.issue(issue.target, issue.message),
         }
         self.advance_handovers();

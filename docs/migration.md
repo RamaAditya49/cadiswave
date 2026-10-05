@@ -28,6 +28,22 @@ CadisWave checks both application bus names before opening vendor controls.
 It retains the legacy native vendor lease during device access.
 An active Python `openwave.service` prevents vendor access.
 Stop that service only after preparing a verified CadisWave installation.
+Check `openwave-tray.service` as well.
+Its `Wants=openwave.service` dependency can start the disabled legacy service at login.
+After installation verification, disable and stop both legacy units:
+
+```sh
+systemctl --user disable --now openwave-tray.service openwave.service
+systemctl --user is-enabled openwave-tray.service openwave.service
+systemctl --user is-active openwave-tray.service openwave.service
+```
+
+Both units must report `disabled` and `inactive`.
+These status commands return a nonzero exit status for disabled or inactive units.
+Keep their unit files and saved configuration for rollback.
+Keep `filter-chain.service`, PipeWire, and WirePlumber running.
+If vendor control is busy, CadisWave shows the cause and a Retry button.
+After resolving the conflict, retry activation without running host setup again.
 The native capture service owns capture streams.
 The desktop runtime owns hardware synchronization while the application runs, including its tray state.
 

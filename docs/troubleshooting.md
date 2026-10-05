@@ -15,6 +15,14 @@ If GNOME does not recognize the extension before login, enable it after login.
 The extension changes only CadisWave icons and restores them when disabled.
 Other GNOME versions are not listed as supported until their integration tests pass.
 
+If the icon turns orange after login, open CadisWave and read the startup error.
+An active `openwave.service` prevents device access.
+The legacy `openwave-tray.service` can start it even when `openwave.service` is disabled.
+Follow [the migration procedure](migration.md#legacy-ownership) to stop both legacy units and disable their startup.
+Select Retry after resolving the conflict.
+Activation retries do not restart the audio server or run host setup again.
+A successful retry clears its activation error and retains unrelated errors.
+
 Start with observation, not a PipeWire restart, USB reset or raw register write. A node marked “running” or a live child process is not proof that samples reach hardware. Avoid recovery experiments during recordings, calls or broadcasts.
 
 ## Diagnostics and privacy

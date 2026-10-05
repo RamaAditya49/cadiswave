@@ -195,6 +195,7 @@ struct AppUi {
     geometry_restored: Cell<bool>,
     prepare_command: Cell<Option<CommandId>>,
     uninstall_command: Cell<Option<CommandId>>,
+    activation_command: Cell<Option<CommandId>>,
     uninstall_result: Cell<bool>,
     uninstall: RefCell<Option<Rc<UninstallDialog>>>,
     inspection_workers: Rc<RefCell<Vec<JoinHandle<()>>>>,
@@ -412,6 +413,7 @@ impl AppUi {
                 fatal: Cell::new(false),
                 geometry_restored: Cell::new(false),
                 uninstall_command: Cell::new(None),
+                activation_command: Cell::new(None),
                 uninstall_result: Cell::new(false),
                 uninstall: RefCell::new(None),
                 inspection_workers: Rc::new(RefCell::new(Vec::new())),
@@ -735,8 +737,11 @@ impl AppUi {
         }
     }
     fn submit_command(self: &Rc<Self>, command: AppCommand) {
-        if let Err(error) = self.handle.submit(command) {
-            self.error("Operation was not accepted", &error.to_string());
+        let activating = matches!(command, AppCommand::ContinueSetup);
+        match self.handle.submit(command) {
+            Ok(id) if activating => self.activation_command.set(Some(id)),
+            Ok(_) => {}
+            Err(error) => self.error("Operation was not accepted", &error.to_string()),
         }
     }
     fn save_geometry(&self) {
@@ -909,6 +914,16 @@ impl AppUi {
                         && let Some(registry) = self.registry.borrow().as_ref()
                     {
                         registry.set_uninstall_state(&format!("error:{error}"));
+                    }
+                } else if self.activation_command.get() == Some(id) {
+                    self.activation_command.set(None);
+                    if let CommandOutcome::Rejected(error) = &result
+                        && !matches!(
+                            self.handle.snapshot().setup_phase,
+                            SetupPhase::ActivationFailed(_)
+                        )
+                    {
+                        self.error("Operation could not be completed", &error.to_string());
                     }
                 } else {
                     match result {
@@ -1861,6 +1876,7 @@ mod tests {
         (rig, ui)
     }
 
+    #[track_caller]
     fn until(rig: &Rig, ui: &Rc<AppUi>, condition: impl Fn() -> bool) {
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
@@ -1880,6 +1896,64 @@ mod tests {
             );
             std::thread::sleep(Duration::from_millis(2));
         }
+    }
+
+    #[test]
+    #[ignore = "requires the isolated installed GTK test runner"]
+    fn startup_conflict_retry_uses_one_dialog_and_clears_the_status_error() {
+        let (rig, ui) = fixture();
+        let error = OperationError::new(ErrorCode::Busy, "OpenWave service is active");
+        rig.fail_startup_activation(error.clone());
+        ui.start_hidden.set(true);
+        ui.activate();
+        until(&rig, &ui, || ui.setup_dialog.borrow().is_some());
+        assert_eq!(ui.window.icon_name().as_deref(), Some("cadiswave-orange"));
+        assert!(
+            ui.window.is_visible(),
+            "Hidden startup must show its failure"
+        );
+        assert!(!ui.stopped.get());
+        for result in [Err(error), Ok(())] {
+            let succeeds = result.is_ok();
+            rig.allow_activation(result);
+            let previous = ui.setup_dialog.borrow().as_ref().unwrap().clone();
+            let button = descendants::<gtk::Button>(&previous)
+                .into_iter()
+                .find(|button| button.label().as_deref() == Some("Retry"))
+                .unwrap();
+            until(&rig, &ui, || button.is_mapped());
+            button.emit_clicked();
+            if succeeds {
+                until(&rig, &ui, || {
+                    rig.snapshot().setup_phase == SetupPhase::Ready
+                        && ui.setup_dialog.borrow().is_none()
+                });
+                assert!(rig.snapshot().errors.is_empty());
+                assert_eq!(ui.window.icon_name().as_deref(), Some("cadiswave-white"));
+            } else {
+                until(&rig, &ui, || {
+                    ui.setup_dialog
+                        .borrow()
+                        .as_ref()
+                        .is_some_and(|dialog| *dialog != previous)
+                });
+                let retry = ui.setup_dialog.borrow().as_ref().unwrap().clone();
+                assert_eq!(
+                    ui.window.visible_dialog().as_ref(),
+                    Some(retry.upcast_ref()),
+                    "Activation retry must show one recovery dialog"
+                );
+                assert_eq!(
+                    retry.heading().as_deref(),
+                    Some("CadisWave could not start")
+                );
+            }
+        }
+        until(&rig, &ui, || ui.window.visible_dialog().is_none());
+        assert_eq!(rig.activation_attempts(), 2);
+        assert_eq!(rig.device_command_count(), 0);
+        assert!(!ui.stopped.get());
+        ui.window.set_visible(false);
     }
 
     #[test]

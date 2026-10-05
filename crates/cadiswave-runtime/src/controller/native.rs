@@ -440,8 +440,11 @@ impl NativeBackend {
             stopping: false,
             stopped: false,
         };
-        if !required {
-            backend.activate()?;
+        if !required && let Err(error) = backend.activate() {
+            log::warn!("Startup activation failed: {error}");
+            backend
+                .queued
+                .push_back(BackendEvent::ActivationFailed(error));
         }
         Ok(backend)
     }
@@ -640,6 +643,82 @@ impl Drop for NativeBackend {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn startup_vendor_conflict_keeps_backend_available_for_retry() {
+        let Some(root) = std::env::var_os("CADISWAVE_STARTUP_CONFLICT_FIXTURE") else {
+            let root = tempfile::tempdir().unwrap();
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "controller::native::tests::startup_vendor_conflict_keeps_backend_available_for_retry",
+                    "--nocapture",
+                ])
+                .env("CADISWAVE_STARTUP_CONFLICT_FIXTURE", root.path())
+                .env("HOME", root.path())
+                .env("XDG_CONFIG_HOME", root.path().join("config"))
+                .env("XDG_DATA_HOME", root.path().join("data"))
+                .env("XDG_STATE_HOME", root.path().join("state"))
+                .env("XDG_RUNTIME_DIR", root.path().join("runtime"))
+                .env("FLATPAK_ID", "io.github.RamaAditya49.CadisWave.Fixture")
+                .env_remove("DBUS_SESSION_BUS_ADDRESS")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        };
+        let root = PathBuf::from(root);
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o700)).unwrap();
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(root.join("runtime"))
+            .unwrap();
+        let paths = RuntimePaths {
+            executable: root.join("bin/cadiswave"),
+            maintenance: root.join("libexec/cadiswave-maintenance"),
+            data: root.join("data"),
+            source: None,
+            prefix: None,
+            identity: root.clone(),
+        };
+        let directory = crate::paths::runtime_private_dir().unwrap();
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&directory)
+            .unwrap();
+        let owner = rustix::fs::open(
+            directory.join("vendor-control.lock"),
+            rustix::fs::OFlags::RDWR | rustix::fs::OFlags::CREATE,
+            rustix::fs::Mode::RUSR | rustix::fs::Mode::WUSR,
+        )
+        .unwrap();
+        rustix::fs::flock(&owner, rustix::fs::FlockOperation::NonBlockingLockExclusive).unwrap();
+        let mut backend = NativeBackend::new(paths, None)
+            .unwrap_or_else(|error| panic!("Startup conflict must remain retryable: {error}"));
+        assert!(backend.active.is_none());
+        assert!(backend.vendor_lease.is_none());
+        assert!(backend.host.is_some());
+        assert!(backend.queued.iter().any(|event| matches!(
+            event, BackendEvent::ActivationFailed(error) if error.code == ErrorCode::Busy
+        )));
+        assert_eq!(
+            backend.dispatch(BackendCommand::Activate).unwrap_err().code,
+            ErrorCode::Busy
+        );
+        assert_eq!(
+            Lease::installation_exclusive(&root).unwrap_err().code,
+            ErrorCode::Busy
+        );
+        backend.shutdown().unwrap();
+        drop(owner);
+        drop(Lease::installation_exclusive(&root).unwrap());
+    }
 
     #[test]
     fn setup_refreshes_service_warning_before_completion() {
